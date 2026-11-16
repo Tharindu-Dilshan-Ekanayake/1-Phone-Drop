@@ -10,6 +10,7 @@ import { carryOverGuest, getSphinxStock, loadProfile, saveProfile, takeSphinx } 
 import { applyGemsForSession } from '../gems.js'
 import { getLeaderboards } from '../leaderboards.js'
 import { activePlayers, broadcastAll, liveRooms } from '../registry.js'
+import { issueSaveTicket } from '../saveTickets.js'
 import { GameState, PlayerState } from './schema.js'
 
 const MAX_CLIENTS = 8
@@ -26,7 +27,8 @@ const DUPLICATE_LOGIN = 4100
 const POD = process.env.POD_NAME || `local-${process.pid}`
 
 /** What other players may be told someone is doing. */
-const ANIMS = ['idle', 'walk', 'run', 'jump', 'pull']
+/** What a player can be seen doing; 'toss0'/'toss1' alternate, one per throw. */
+const ANIMS = ['idle', 'walk', 'jump', 'pull', 'toss0', 'toss1']
 /** A Boxity emote, replicated through `anim` as 'emote:<its 24-hex id>'. */
 const EMOTE_ANIM = /^emote:[a-f0-9]{24}$/
 /** Least time between two 'gemsCheck's from one player (each is a database query). */
@@ -91,10 +93,11 @@ export class GameRoom extends Room {
   }
 
   /**
-   * Who is joining. Join options are `{ playerId, name, token, gameSlug }`, `token`
+   * Who is joining. Join options are `{ name, token, tickets, gameSlug }`, `token`
    * being the Boxity SDK's game token (null for guests). A token is verified with
-   * Boxity and its account id becomes the save key; without one the player is a guest.
-   * See resolveIdentity for the details. Throwing refuses the join.
+   * Boxity and its account id becomes the save key; without one the player is a guest
+   * under an id this server made (their save ticket's, or a new one). Any id the
+   * client sends is ignored. See resolveIdentity for the details.
    */
   async onAuth(_client, options) {
     const identity = await resolveIdentity(options)
@@ -102,7 +105,7 @@ export class GameRoom extends Room {
   }
 
   async onJoin(client, _options, auth) {
-    const { playerId, name, verified = false, carriedFrom = [] } = client.auth || auth
+    const { playerId, name, verified = false, carriedFrom = [], ticketed = [] } = client.auth || auth
 
     // Same account joining again (a refresh, a new tab, a reconnect the old session
     // hasn't noticed yet): the newest connection wins. The old one is saved and removed
@@ -113,10 +116,15 @@ export class GameRoom extends Room {
 
     const now = Date.now()
     const owner = `${POD}:${client.sessionId}`
-    // An account's first visit brings along what it played as a guest (once only).
-    if (verified && carriedFrom.length) {
-      const from = await carryOverGuest(playerId, carriedFrom, name)
-      if (from) console.log(`[room] carried guest ${from} into ${playerId}`)
+    // A first visit under this id brings along the progress played under an earlier one
+    // (once only, and only into an id with no save yet): an account's guest saves as
+    // Boxity knows them, then the guest saves this browser holds tickets for - so a
+    // guest whose id changed (a new Boxity guest identity, the SDK failing to load)
+    // keeps their progress instead of starting over.
+    const sources = [...(verified ? carriedFrom : []), ...ticketed].filter((id) => id !== playerId)
+    if (sources.length) {
+      const from = await carryOverGuest(playerId, sources, name)
+      if (from) console.log(`[room] carried ${from} into ${playerId}`)
     }
     const profile = await loadProfile(playerId, name, owner)
     const offline = applyOfflineProgress(profile, now)
@@ -172,6 +180,11 @@ export class GameRoom extends Room {
     activePlayers.set(playerId, { room: this, client })
 
     session.sendProfile()
+    // Guests get a ticket for their save, so it follows them if their id ever changes.
+    if (!verified) {
+      const ticket = issueSaveTicket(playerId)
+      if (ticket) client.send('saveTicket', ticket)
+    }
     client.send('spawn', { x: spawnX, z: spawnZ })
     client.send('stock', { sphinx: getSphinxStock() })
     client.send('leaderboards', getLeaderboards())

@@ -22,15 +22,24 @@ import { getBloxityState, useBloxityStore } from './store'
 export const LEADERBOARDS = [
   { id: 'rebirths', label: 'Rebirths', order: 'desc', mode: 'best', format: 'number', reset: 'none' },
   { id: 'wins', label: 'Total Wins', order: 'desc', mode: 'best', format: 'compact', reset: 'none' },
-  { id: 'distance', label: 'Longest Flight (m)', order: 'desc', mode: 'best', format: 'compact', reset: 'none' },
+  { id: 'distance', label: 'Deepest Drop (m)', order: 'desc', mode: 'best', format: 'compact', reset: 'none' },
   { id: 'playtime', label: 'Minutes Played', order: 'desc', mode: 'best', format: 'number', reset: 'none' },
 ]
+
+/**
+ * The screens the game shows, for Boxity's screen ads (services.js setScreen): a modal
+ * panel (shop, pets, rebirth...) and gameplay. Gameplay banners stay OFF - Boxity shows
+ * none during play unless `gameplay` gets `show: true` here, and that is the
+ * developer's call, not a default.
+ */
+export const AD_SCREENS = { panel: {}, gameplay: {} }
 
 /** Once per page, right after `Legion.SDK.init()`. */
 export function setupOnce(sdk) {
   // Boxity draws the emote picker once a game says it can play emotes.
   safeCall(sdk.game?.registerFeature?.bind(sdk.game), 'emotes')
   safeCall(sdk.leaderboard?.define?.bind(sdk.leaderboard), LEADERBOARDS)
+  safeCall(sdk.ads?.declareScreens?.bind(sdk.ads), AD_SCREENS)
 }
 
 /** Subscribes `fn` through an SDK `on*` method if it exists; returns the unsubscribe. */

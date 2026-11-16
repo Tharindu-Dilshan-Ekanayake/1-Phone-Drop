@@ -1,9 +1,12 @@
+import { randomBytes } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { SPHINX_STOCK_DEFAULT } from '../../shared/balance.js'
 import { normalizeProfile } from '../../shared/logic.js'
+import { bloxity } from './bloxityEnv.js'
+import { setSaveTicketSecret } from './saveTickets.js'
 
 /**
  * Persistence, behind one small async API with two backends:
@@ -30,6 +33,20 @@ import { normalizeProfile } from '../../shared/logic.js'
  */
 
 const DB_PATH = process.env.DB_PATH || fileURLToPath(new URL('../data/tire.db', import.meta.url))
+
+/**
+ * The managed database's address. MONGODB_URI is the name Legion uses; the other common
+ * spellings are accepted too, so a platform naming it differently never silently drops
+ * every save into a throwaway file.
+ */
+export function mongoUriFrom(env = process.env) {
+  const named = env.MONGODB_URI || env.MONGO_URI || env.MONGO_URL || env.MONGODB_URL
+  if (named) return named
+  return /^mongodb(\+srv)?:\/\//.test(env.DATABASE_URL || '') ? env.DATABASE_URL : ''
+}
+
+/** A new random secret for save tickets (saveTickets.js), made once per database. */
+const newSecret = () => randomBytes(32).toString('hex')
 
 const BOARDS = { rebirths: 'rebirths', wins: 'totalWins', distance: 'bestDistance', playtime: 'playtime' }
 
@@ -154,6 +171,15 @@ async function openMongo(uri) {
       const doc = await kv.findOneAndUpdate({ _id: 'sphinxStock', value: { $gt: 0 } }, { $inc: { value: -1 } }, { returnDocument: 'after' })
       return doc ? doc.value : null
     },
+    async secret() {
+      // Made by whichever pod gets here first; every other pod reads the same one.
+      const doc = await kv.findOneAndUpdate(
+        { _id: 'saveTicketSecret' },
+        { $setOnInsert: { value: newSecret() } },
+        { upsert: true, returnDocument: 'after' },
+      )
+      return doc?.value ?? null
+    },
     close: () => client.close(),
   }
 }
@@ -271,6 +297,10 @@ async function openSqlite(path) {
     async stock() {
       return readStock()
     },
+    async secret() {
+      db.prepare("INSERT INTO kv (key, value) VALUES ('saveTicketSecret', ?) ON CONFLICT(key) DO NOTHING").run(newSecret())
+      return db.prepare("SELECT value FROM kv WHERE key = 'saveTicketSecret'").get()?.value ?? null
+    },
     async take() {
       const stock = readStock()
       if (stock <= 0) return null
@@ -287,11 +317,25 @@ let store = null
 /** Sphinx stock as last known here; kept current from the database. */
 let stock = SPHINX_STOCK_DEFAULT
 
-/** Opens the database: MongoDB if MONGODB_URI is set, else the local SQLite file. */
-export async function openStorage({ mongoUri = process.env.MONGODB_URI, path = DB_PATH } = {}) {
+/** 'mongo' or 'sqlite': which backend holds the saves (shown on /api/health). */
+let kind = null
+export const storageKind = () => kind
+
+/** Opens the database: MongoDB if its URI is set (mongoUriFrom), else the local SQLite file. */
+export async function openStorage({ mongoUri = mongoUriFrom(), path = DB_PATH, hosted = bloxity.hosted } = {}) {
   store = mongoUri ? await openMongo(mongoUri) : await openSqlite(path)
+  kind = mongoUri ? 'mongo' : 'sqlite'
   stock = await store.stock()
+  setSaveTicketSecret(await store.secret())
   console.log(`[db] using ${mongoUri ? 'MongoDB' : `SQLite at ${path}`}`)
+  if (hosted && !mongoUri) {
+    // A file inside the container lives only as long as the pod: every redeploy or pod
+    // restart starts everyone from zero, and two pods never see each other's saves.
+    console.error(
+      '[db] !!! Hosted without MONGODB_URI: saves go to a file inside this pod and are LOST on every ' +
+        'redeploy or restart. Ask Boxity to attach the game database (MONGODB_URI) to this deploy.',
+    )
+  }
 }
 
 export async function closeStorage() {

@@ -1,4 +1,7 @@
+import { randomUUID } from 'node:crypto'
+
 import { apiUrl, bloxity } from './bloxityEnv.js'
+import { saveIdsFromTickets } from './saveTickets.js'
 
 /**
  * The Boxity platform calls the server makes on a player's behalf: who a joining
@@ -29,61 +32,63 @@ export async function postJson(url, payload, { headers = {}, fetchImpl = fetch, 
   return { status: res.status, body }
 }
 
-/** A guest's save key: their own 'guest-...' id, or anything else made into one. */
-export const asGuestId = (id) => (id.startsWith('guest-') ? id : `guest-${id}`).slice(0, MAX_ID)
+/** A new guest's id, made here: never one a client names. */
+export const newGuestId = () => `guest-${randomUUID()}`
+
+let warnedNoApi = false
 
 /**
- * Who a joining player is, from their join options `{ playerId, name, token }`.
- * Resolves `{ playerId, verified, name?, carriedFrom }` or throws to refuse the join.
+ * Who a joining player is, from their join options `{ token, tickets, name }`.
+ * Resolves `{ playerId, verified, name?, carriedFrom, ticketed }`.
  *
- * - With a token (a logged-in Boxity player): Boxity verifies it, and the account id
- *   it answers with is the save key - whatever playerId the client claimed. A token
- *   Boxity rejects refuses the join.
- * - Without one, the claimed id is taken as a guest's. Boxity-hosted, it must be a
- *   guest id ('guest-...'), and anything else is made into one: a client can't open
- *   someone's account save by naming their account id. Off Boxity (development) any
- *   id goes.
- * - If Boxity can't be reached, the player still gets in, as a guest (see above), so
- *   an outage on the platform doesn't lock everyone out of the game.
+ * - With a token (a signed-in Boxity player) that Boxity verifies, the account id in
+ *   Boxity's answer is the save key - and nothing else is, ever: any userId/playerId in
+ *   the join options is ignored, and the token is never decoded here.
+ * - Everyone else is a guest, under an id this server made: the one in the newest
+ *   genuine save ticket the browser shows (saveTickets.js: signed by this server when it
+ *   made that guest), else a brand-new one. So a guest keeps their save for as long as
+ *   their browser keeps its tickets, whatever the SDK's own guest identity does.
+ *   That covers no token, a token Boxity refuses (expired: the player keeps playing,
+ *   as a guest), and Boxity being unreachable (an outage never locks anyone out).
  *
- * Only `verified` players count for Boxity leaderboards and receive Gems purchases.
+ * `ticketed` lists every save the browser proved it played (newest first), for carrying
+ * progress into an id with no save yet (GameRoom.onJoin). Only `verified` players count
+ * for Boxity leaderboards and receive Gems purchases.
  */
-export async function resolveIdentity(options, { fetchImpl = fetch, settings = bloxity } = {}) {
-  const claimed = String(options?.playerId || '').trim().slice(0, MAX_ID)
+export async function resolveIdentity(options, { fetchImpl = fetch, settings = bloxity, makeGuestId = newGuestId } = {}) {
   const token = typeof options?.token === 'string' && options.token ? options.token : null
+  const ticketed = saveIdsFromTickets(options?.tickets)
+  const guest = () => ({ playerId: ticketed[0] || makeGuestId(), verified: false, carriedFrom: [], ticketed })
 
-  const unverified = () => {
-    if (!claimed) throw new Error('Missing player id')
-    const playerId = settings.hosted ? asGuestId(claimed) : claimed
-    return { playerId, verified: false, carriedFrom: [] }
+  if (!token) return guest()
+  const url = apiUrl('/v1/auth/game-token/verify', settings)
+  if (!url) {
+    if (!warnedNoApi) console.warn('[auth] no BLOXITY_API_URL: signed-in players join as guests')
+    warnedNoApi = true
+    return guest()
   }
-
-  if (!token) return unverified()
 
   let answer
   try {
-    answer = await postJson(
-      apiUrl('/v1/auth/game-token/verify', settings),
-      { gameSlug: settings.gameSlug },
-      { headers: { Authorization: `Bearer ${token}` }, fetchImpl },
-    )
+    answer = await postJson(url, { gameSlug: settings.gameSlug }, { headers: { Authorization: `Bearer ${token}` }, fetchImpl })
   } catch (err) {
-    console.warn(`[auth] Boxity unreachable, ${claimed || 'player'} joins as a guest:`, err?.message || err)
-    return unverified()
+    console.warn('[auth] Boxity unreachable, joining as a guest:', err?.message || err)
+    return guest()
   }
   // A platform error isn't a verdict on the player.
   if (answer.status >= 500) {
-    console.warn(`[auth] Boxity answered ${answer.status}, ${claimed || 'player'} joins as a guest`)
-    return unverified()
+    console.warn(`[auth] Boxity answered ${answer.status}, joining as a guest`)
+    return guest()
   }
   const { valid, user, carriedFrom } = answer.body || {}
-  if (!valid || !user?._id) throw new Error('Invalid Boxity session')
+  if (!valid || !user?._id) return guest()
   return {
     playerId: String(user._id).slice(0, MAX_ID),
     verified: true,
     // The account's own name beats what the client says it is.
     name: user.displayName || user.username || undefined,
     carriedFrom: Array.isArray(carriedFrom) ? carriedFrom.map(String).filter(Boolean).slice(0, 10) : [],
+    ticketed,
   }
 }
 
@@ -92,9 +97,11 @@ export async function resolveIdentity(options, { fetchImpl = fetch, settings = b
  * failure counts as no: an unconfirmed ad never pays.
  */
 export async function verifyAdReward(rewardToken, { fetchImpl = fetch, settings = bloxity } = {}) {
+  const url = apiUrl('/v1/ads/reward/verify', settings)
+  if (!url) return false
   try {
     const { body } = await postJson(
-      apiUrl('/v1/ads/reward/verify', settings),
+      url,
       { gameSlug: settings.gameSlug, rewardToken },
       { fetchImpl },
     )

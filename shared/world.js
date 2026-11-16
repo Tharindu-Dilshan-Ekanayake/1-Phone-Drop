@@ -1,28 +1,21 @@
-import { armGrowth } from './balance.js'
-
 /**
  * Lobby layout: every gameplay-relevant position and trigger area.
  *
  * Shared by the client (which renders it) and the server (which validates positions
  * against it), so the two can never disagree about where a pad or the roll zone is.
  *
- * Units are roughly metres in the lobby (the avatar is 1.8 tall) and yards down the kick field. +X is east, -Z is north, which is
- * "forward" from spawn and the way down the track.
- *
- * Seen from spawn: the kick zone and the field beyond it straight ahead (north), the
- * treadmills along the right (east) side, the ball shop on the left (west),
- * the eggs in a row back on the left, the Volcano egg front right, the leaderboards
- * behind. Grandstands ring the whole plaza, like a football stadium.
+ * Units are metres (the avatar is 1.8 tall). +X is east, -Z is north, which is "forward"
+ * from spawn and the way to the cliff edge.
  *
  * Rects are `{ minX, maxX, minZ, maxZ }` on the ground plane.
  */
 
 /**
- * The lobby is a small canyon: you spawn at its south end and a candy path runs north,
- * 90 m, to the launch posts. The pull-up bars stand close together along the east side
- * (each better than the last as you go north) and the arm shop along the west, both
- * running up alongside the 50 m STRETCH LANE that leads back from the posts; the eggs and
- * leaderboards are back by the spawn. Seen from spawn: the path and the lane ahead.
+ * The lobby is a little mountain-top plaza high above the clouds: you spawn at its south
+ * end and a candy path runs north, 90 m, to the DROP ZONE at the cliff edge, where you
+ * throw your phone down onto the hotel far below. The throw pads stand close together
+ * along the east side (each better than the last as you go north) and the phone shop
+ * along the west; the eggs and leaderboards are back by the spawn.
  */
 export const SPAWN = { x: 0, z: 50 }
 
@@ -43,39 +36,19 @@ export const SLOPE_ANGLE = 0
 /** Half the width of the canyon floor. */
 export const CANYON_HALF_WIDTH = 16
 
-/** The yellow LAUNCH PAD (the template's roll zone) at the runway's mouth: launches go from here. */
+/**
+ * The yellow DROP ZONE (the template's roll zone) at the cliff edge: drops go from here.
+ * Beyond its north edge the mountain falls away to the clouds, and the hotel far below.
+ */
 export const ROLL_ZONE = { minX: -13, maxX: 13, minZ: -40, maxZ: -21 }
-/** Where you're put back after a roll: just short of the zone, facing it. */
+/** Where you're put back after a drop: just short of the edge, facing it. */
 export const ROLL_RETURN = { x: 0, z: -27 }
 
 /**
- * The launch posts: a pair of posts standing at the front of the LAUNCH PAD, either side
- * of the runway's middle, `halfGap` out. You grab their tops standing at LAUNCH_STAND
- * (GRAB_RADIUS of it lets you), walk back towards the plaza to stretch your arms, and fly
- * out between them. Walking back takes you at most MAX_PULL behind the stand, down the
- * STRETCH LANE - still on the pad as far as the server's launch check goes.
+ * Where you stand to throw: right at the edge, in the gap in the railing. Pressing DROP
+ * anywhere in the zone walks you here for the throw (the server only checks the zone).
  */
-export const LAUNCH_POSTS = { x: 0, z: -38.8, halfGap: 0.8 }
-export const LAUNCH_STAND = { x: LAUNCH_POSTS.x, z: LAUNCH_POSTS.z + 1.1 }
-export const GRAB_RADIUS = 3.5
-export const MAX_PULL = 50
-/**
- * The STRETCH LANE: the long rubber strip running back from the stand spot, MAX_PULL long,
- * that you walk down holding the posts. Part of the launch pad as far as launching goes.
- */
-export const STRETCH_LANE = { minX: LAUNCH_STAND.x - 3, maxX: LAUNCH_STAND.x + 3, minZ: LAUNCH_STAND.z, maxZ: LAUNCH_STAND.z + MAX_PULL + 1.5 }
-
-/**
- * How far back arms `tireId` let you walk at `level` before they're at full stretch: a few
- * metres with your first arms, the whole 50 m lane with the best ones, well levelled.
- */
-export function maxPullFor(tireId, level = 1, cap = 15) {
-  return 3 + (MAX_PULL - 3) * armGrowth(tireId, level, cap)
-}
-
-/** Metres you're stretched back at (x, z): how far behind the stand spot, along the lane. */
-export const pullBackAt = (x, z) => (inRect(STRETCH_LANE, x, z, 1) ? Math.max(0, z - LAUNCH_STAND.z) : 0)
-export const nearLaunchPosts = (x, z, margin = 0) => Math.hypot(x - LAUNCH_STAND.x, z - LAUNCH_STAND.z) <= GRAB_RADIUS + margin
+export const DROP_SPOT = { x: 0, z: -38.6 }
 /** The start arch's pillars, either side of the zone. */
 export const ROLL_ARCH = { x: 15.5, z: -37 }
 
@@ -85,11 +58,11 @@ export const WALKABLE = [PLAZA]
 // --- Training pads ------------------------------------------------------------------
 
 /**
- * Treadmills line the east side of the plaza, south to north: a round mat to run on
- * (the pad: standing on it is training, facing east) with the treadmill's belt on it and
- * its console and multiplier backboard just beyond to the east, then a running track.
+ * Throw pads line the east side of the plaza, south to north: a round mat to throw from
+ * (the pad: standing on it is training, facing east down its lane) with its target and
+ * its multiplier backboard over the lane.
  */
-/** Seven treadmills, then Palm Beach's two beach treadmills at the north end of the row. */
+/** Seven throw pads, then Palm Beach's two beach pads at the north end of the row. */
 export const PAD_COUNT = 9
 export const PAD_PITCH = 7
 /** Radius of a pad's top: standing within it is training. */
@@ -102,11 +75,6 @@ const PAD0_Z = 36
 
 export const padCenterZ = (index) => PAD0_Z - index * PAD_PITCH
 
-/**
- * Each pull-up bar is higher than the last: the first hangs just over your head, the best
- * ones tower - so the later you train, the more your rubber arms have to stretch.
- */
-export const padBarHeight = (index) => 2.6 + 0.62 * Math.max(0, index)
 
 /**
  * Each pad's console area, on the ground east of it: these constants (named for the
@@ -249,9 +217,6 @@ export const STATIC_COLLIDERS = [
   ...Array.from({ length: PAD_COUNT }, (_, i) => box(COURT_BACK_X, padCenterZ(i), 0.15, COURT_HALF)),
   // Each portal ring's base; the swirl itself is walk-through.
   ...PORTALS.flatMap((p) => [box(p.x - p.radius, p.z, 0.6, 0.8), box(p.x + p.radius, p.z, 0.6, 0.8)]),
-  // The launch posts (you fly out between them, never walk through them).
-  box(LAUNCH_POSTS.x - LAUNCH_POSTS.halfGap, LAUNCH_POSTS.z, 0.2, 0.2),
-  box(LAUNCH_POSTS.x + LAUNCH_POSTS.halfGap, LAUNCH_POSTS.z, 0.2, 0.2),
   // The start arch's pillars.
   box(-ROLL_ARCH.x, ROLL_ARCH.z, 1, 1),
   box(ROLL_ARCH.x, ROLL_ARCH.z, 1, 1),
@@ -282,7 +247,7 @@ export function padAt(x, z, margin = 0) {
   return -1
 }
 
-export const inRollZone = (x, z, margin = 0) => inRect(ROLL_ZONE, x, z, margin) || inRect(STRETCH_LANE, x, z, margin)
+export const inRollZone = (x, z, margin = 0) => inRect(ROLL_ZONE, x, z, margin)
 
 /** The portal whose swirl (x, z) is in, give or take `margin`, or null. */
 export function portalAt(x, z, margin = 0) {
@@ -293,7 +258,7 @@ export function portalAt(x, z, margin = 0) {
 }
 
 /**
- * Whether a move from `from` to `to` is the hop back after a roll: off the roll zone
+ * Whether a move from `from` to `to` is the hop back after a drop: off the drop zone
  * onto ROLL_RETURN. Faster than walking, so the server's speed check lets exactly this
  * one through.
  */

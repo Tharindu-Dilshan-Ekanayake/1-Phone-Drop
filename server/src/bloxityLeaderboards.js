@@ -20,7 +20,7 @@ import { activePlayers } from './registry.js'
 export const BLOXITY_LEADERBOARDS = [
   { id: 'rebirths', label: 'Rebirths', order: 'desc', mode: 'best', format: 'number', reset: 'none' },
   { id: 'wins', label: 'Total Wins', order: 'desc', mode: 'best', format: 'compact', reset: 'none' },
-  { id: 'distance', label: 'Longest Flight (m)', order: 'desc', mode: 'best', format: 'compact', reset: 'none' },
+  { id: 'distance', label: 'Deepest Drop (m)', order: 'desc', mode: 'best', format: 'compact', reset: 'none' },
   { id: 'playtime', label: 'Minutes Played', order: 'desc', mode: 'best', format: 'number', reset: 'none' },
 ]
 
@@ -71,6 +71,8 @@ export function chunk(list, size = MAX_SCORES_PER_REPORT) {
  */
 export async function sendScores(scores, lastSent, { token, settings = bloxity, fetchImpl = fetch } = {}) {
   const url = apiUrl(`/v1/leaderboards/hosted/${encodeURIComponent(settings.gameId)}/report`, settings)
+  // Not on Boxity hosting (no API URL injected): nowhere to report to.
+  if (!url) return
   for (const batch of chunk(scores)) {
     try {
       const { status, body } = await postJson(

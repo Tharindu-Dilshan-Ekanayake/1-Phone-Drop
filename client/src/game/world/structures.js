@@ -7,7 +7,6 @@ import {
   PAD_HEIGHT,
   PAD_RADIUS,
   PAD_X,
-  padBarHeight,
   padCenterZ,
   SHOP_SIGN,
   SHOP_SIGN_FACING,
@@ -16,6 +15,8 @@ import {
 } from '@shared/world'
 
 import { STYLE } from '../materials'
+import { addPhone } from '../phoneStyles'
+import { THROW_TARGET_X } from '../practice'
 import { venueOf } from '../sceneStyle'
 
 /**
@@ -24,29 +25,26 @@ import { venueOf } from '../sceneStyle'
  */
 
 /**
- * Per-bar look, in pad order (matches PADS in shared/balance.js): the mat's base, top,
- * glowing ring and centre emblem, the bar frame's posts and its rubber grips, the gym
- * floor beyond it, and the colour of its labels. `beach` ones (Palm Beach's surf bars)
- * have surfboard posts and a surfboard and palm on top of their board.
+ * Per-pad look, in pad order (matches PADS in shared/balance.js): the mat's base, top,
+ * glowing ring and centre emblem, the board's frame and screen, the lane's floor, and the
+ * colour of its labels. `beach` ones (Palm Beach's surf pads) have a surfboard and palm
+ * on top of their board.
  */
 export const PAD_THEMES = [
-  { base: '#1f5fc8', top: '#3f9cff', ring: '#9fe8ff', emblem: '#ffffff', rail: '#1d5fd6', court: '#2c4fa8', screen: '#5fd6ff', text: '#5fd6ff' },
-  { base: '#b8222e', top: '#ff3b3b', ring: '#ffd21f', emblem: '#1d1f22', rail: '#c8323c', court: '#a8323c', screen: '#ffd21f', text: '#ff7a6a' },
-  { base: '#d64a9a', top: '#ff8fd0', ring: '#ffffff', emblem: '#ffd23f', rail: '#d63f8f', court: '#b8467e', screen: '#ffffff', text: '#ff9cd6' },
-  { base: '#1d3f8a', top: '#2f6fe0', ring: '#7fe2ff', emblem: '#ffd21f', rail: '#173b8f', court: '#26408a', screen: '#7fe2ff', text: '#7fb8ff' },
-  { base: '#5a2a9a', top: '#8a4cff', ring: '#ff7ad9', emblem: '#ffffff', rail: '#6a2fd0', court: '#4a2a8a', screen: '#ff7ad9', text: '#c69bff' },
-  { base: '#1a8ab8', top: '#7ff0ff', ring: '#ffffff', emblem: '#9b6bff', rail: '#14a3c9', court: '#1f7aa8', screen: '#ffffff', text: '#9fe8ff', style: STYLE.GLOW },
-  { base: '#1b2266', top: '#2a1450', ring: '#c35cff', emblem: '#ffd21f', rail: '#2a1450', court: '#1b1f5c', screen: '#ffd21f', text: '#d39bff', style: STYLE.GALAXY },
+  { base: '#0f8a7a', top: '#2fd6b8', ring: '#bffff0', emblem: '#ffffff', rail: '#0f9a88', court: '#127a6c', screen: '#bffff0', text: '#5fffe0' },
+  { base: '#c85a10', top: '#ff8a2a', ring: '#ffe0a0', emblem: '#1d1f22', rail: '#d86a1a', court: '#a84e12', screen: '#ffe0a0', text: '#ffb06a' },
+  { base: '#4a9a1a', top: '#7fe03a', ring: '#f0ffb8', emblem: '#ffffff', rail: '#5aa82a', court: '#3f8418', screen: '#f0ffb8', text: '#b8ff7a' },
+  { base: '#1a5aa8', top: '#3a8dff', ring: '#bfe0ff', emblem: '#ffd21f', rail: '#1f66c0', court: '#174f94', screen: '#bfe0ff', text: '#8fc4ff' },
+  { base: '#a8145a', top: '#ff3a8a', ring: '#ffc0dc', emblem: '#ffffff', rail: '#c01f68', court: '#8e124c', screen: '#ffc0dc', text: '#ff8ac0' },
+  { base: '#5a3ad8', top: '#b8a0ff', ring: '#ffffff', emblem: '#2fc6ff', rail: '#6a4ae8', court: '#4a30b8', screen: '#ffffff', text: '#d0c0ff', style: STYLE.GLOW },
+  { base: '#14183f', top: '#1a1240', ring: '#ff7a1a', emblem: '#2fc6ff', rail: '#1a1240', court: '#14183f', screen: '#ff7a1a', text: '#ffb06a', style: STYLE.GALAXY },
   // Palm Beach's beach bars: sand and surf, then a deep-sea wave.
   { base: '#e8c27a', top: '#ffe29a', ring: '#3fd8ff', emblem: '#ff7a3a', rail: '#2fb8e0', court: '#d9b46a', screen: '#3fd8ff', text: '#5fe6ff', beach: true },
   { base: '#0b4f8a', top: '#1a8fd8', ring: '#7ff6ff', emblem: '#ffffff', rail: '#0a6fb8', court: '#0b3f72', screen: '#7ff6ff', text: '#7ff6ff', style: STYLE.GLOW, beach: true },
 ]
 
-/** Where each hand grips the bar, either side of the middle. */
-const BAR_GRIP_X = 0.62
 const LINE = '#f4f7fb'
 const LEG = '#3a3f4a'
-const STEEL = '#c9d2de'
 /** The multiplier backboard: high above the bar, and compact. Labels centre on it (lobbyLabels). */
 export const BOARD_BOTTOM = 4.8
 export const BOARD_HEIGHT = 3.6
@@ -57,9 +55,8 @@ const CYL = new CylinderGeometry(1, 1, 1, 12)
 const BALL = new SphereGeometry(1, 12, 8)
 
 /**
- * A bar's gym floor, east of its mat: a coloured floor with white lines and a low barrier
- * at the back. Boxes go in `blocks`: no draw calls of their own. (The bar itself stands
- * over the mat: buildPullUpBar.)
+ * A pad's lane floor, east of its mat: a coloured floor with white lines and a low barrier
+ * at the back. Boxes go in `blocks`: no draw calls of their own.
  */
 function buildCourt(blocks, z, theme) {
   const courtLength = COURT_BACK_X - (TABLE_NEAR_X - 0.4)
@@ -77,55 +74,43 @@ function buildCourt(blocks, z, theme) {
   blocks.addOn(COURT_BACK_X, 0.75, z, 0.26, 0.08, COURT_HALF * 2, theme.ring, STYLE.GLOW)
 }
 
-/** A dumbbell lying along Z at (x, y, z): a steel handle and a weight each end. */
-function addDumbbell(props, x, y, z, color, size = 1) {
-  props.add(CYL, { position: [x, y, z], rotation: [Math.PI / 2, 0, 0], scale: [0.05 * size, 0.7 * size, 0.05 * size], color: STEEL })
-  for (const s of [-1, 1]) {
-    props.add(DISC, { position: [x, y, z + s * 0.3 * size], rotation: [Math.PI / 2, 0, 0], scale: [0.2 * size, 0.12 * size, 0.2 * size], color })
-  }
-}
+/** Spare phones sticking up out of each pad's crate, in their colours. */
+const CRATE_PHONES = ['#3a6bff', '#ff5a7a', '#2fc6ff', '#ffd21f']
 
 /**
- * The pull-up bar over the mat (the trainee stands at its centre facing east, the bar
- * across in front of their raised hands): two posts in the bar's colour with glowing
- * caps, a steel bar between them at padBarHeight over the mat (higher with every bar) with rubber grips where the hands
- * go, then east of the mat a weights bench with a rack of dumbbells and, behind it, the
- * big backboard the bar's multiplier label (labels/lobbyLabels.js) hangs in front of.
+ * A pad's throwing lane (the thrower stands on the mat facing east and throws down it,
+ * practice.js): a glowing throw line on the mat, a wooden crate of spare phones beside the
+ * spot, chevrons down the lane and, at its far end, the target - red and white rings with
+ * a glowing bullseye - flat on the floor where the practice phones land; then the big
+ * backboard the pad's multiplier label (labels/lobbyLabels.js) hangs in front of.
  *
  * Everything east of x = TABLE_NEAR_X stays inside the pad's static collider
- * (shared/world.js), so what you can't walk through is what's drawn.
+ * (shared/world.js): the lane is for phones, not for walking down.
  */
-function buildPullUpBar(blocks, props, z, theme, height) {
+function buildThrowLane(blocks, props, z, theme) {
   const top = PAD_HEIGHT
-  const barY = top + height
-  const postZ = 1.35
-  // The frame: a post either side (surfboards on a beach bar), feet, glowing caps.
-  for (const s of [-1, 1]) {
-    const pz = z + s * postZ
-    blocks.addOn(PAD_X, top, pz, 0.9, 0.12, 0.7, LEG, STYLE.SMOOTH)
-    if (theme.beach) {
-      props.add(BALL, { position: [PAD_X, top + (height + 0.4) / 2, pz], scale: [0.36, (height + 0.4) / 2, 0.14], color: theme.rail })
-      props.add(BALL, { position: [PAD_X, top + (height + 0.4) / 2, pz], scale: [0.08, (height + 0.2) / 2, 0.15], color: '#ffffff' })
-    } else {
-      blocks.addOn(PAD_X, top + 0.12, pz, 0.3, height + 0.2, 0.3, theme.rail, STYLE.SMOOTH)
-      blocks.addOn(PAD_X, top + 0.6, pz, 0.34, 0.08, 0.34, theme.ring, STYLE.GLOW)
-    }
-    blocks.addOn(PAD_X, top + height + 0.32, pz, 0.42, 0.16, 0.42, theme.ring, STYLE.GLOW)
+  blocks.addOn(PAD_X + 1.55, top + 0.01, z, 0.2, 0.05, 3.4, '#ffffff', STYLE.GLOW)
+  // The crate of spare phones, behind and to the left of where you stand.
+  const cx = PAD_X - 1.3
+  const cz = z - 1.75
+  blocks.addOn(cx, top, cz, 1.2, 0.5, 0.8, '#c98f52', STYLE.SMOOTH)
+  for (const dz of [-0.36, 0.36]) blocks.addOn(cx, top + 0.1, cz + dz, 1.24, 0.08, 0.1, '#8a5a32', STYLE.SMOOTH)
+  CRATE_PHONES.forEach((color, i) => {
+    const px = cx - 0.39 + i * 0.26
+    blocks.add(px, top + 0.62, cz + (i % 2 ? 0.12 : -0.1), 0.2, 0.42, 0.07, color, STYLE.SMOOTH, 0.15 * (i - 1.5), 0.1 * (i % 2 ? 1 : -1))
+    blocks.add(px, top + 0.66, cz + (i % 2 ? 0.12 : -0.1) - 0.04, 0.15, 0.3, 0.02, '#bff6ff', STYLE.GLOW, 0.15 * (i - 1.5), 0.1 * (i % 2 ? 1 : -1))
+  })
+  // Chevrons down the lane, pointing at the target.
+  for (let k = 0; k < 2; k += 1) {
+    const x = PAD_X + 3.6 + k * 1.1
+    for (const side of [-1, 1]) blocks.add(x, 0.07, z + side * 0.42, 0.9, 0.03, 0.2, theme.ring, STYLE.GLOW, side * 0.75)
   }
-  // The bar, and a rubber grip where each hand goes.
-  props.add(CYL, { position: [PAD_X, barY, z], rotation: [Math.PI / 2, 0, 0], scale: [0.065, postZ * 2 + 0.2, 0.065], color: STEEL })
-  for (const s of [-1, 1]) {
-    props.add(CYL, { position: [PAD_X, barY, z + s * BAR_GRIP_X], rotation: [Math.PI / 2, 0, 0], scale: [0.09, 0.34, 0.09], color: theme.screen, style: STYLE.GLOW })
-  }
-
-  // East of the mat: a weights bench and a rack of dumbbells, in the bar's colours.
-  const cx = PAD_X + 3.4
-  blocks.addOn(cx - 0.6, 0, z, 1.0, 0.42, 1.9, LEG, STYLE.SMOOTH)
-  blocks.addOn(cx - 0.6, 0.42, z, 1.1, 0.16, 2.0, theme.rail, STYLE.SMOOTH)
-  blocks.addOn(cx + 0.7, 0, z, 0.7, 1.05, 2.0, '#2a2f3a', STYLE.SMOOTH)
-  blocks.addOn(cx + 0.7, 1.05, z, 0.8, 0.06, 2.1, theme.ring, STYLE.GLOW)
-  for (let i = 0; i < 3; i += 1) addDumbbell(props, cx + 0.7, 0.35 + i * 0.32, z + (i - 1) * 0.2, i === 1 ? theme.top : '#2a2f3a', 0.85 + i * 0.12)
-  addDumbbell(props, cx - 0.6, 0.78, z, theme.screen, 1)
+  // The target: rings stepping up a little each, the bullseye glowing.
+  const tx = THROW_TARGET_X
+  props.add(DISC, { position: [tx, 0.07, z], scale: [1.3, 0.04, 1.3], color: '#ffffff' })
+  props.add(DISC, { position: [tx, 0.09, z], scale: [1.05, 0.04, 1.05], color: '#ff3b3b' })
+  props.add(DISC, { position: [tx, 0.11, z], scale: [0.75, 0.04, 0.75], color: '#ffffff' })
+  props.add(DISC, { position: [tx, 0.13, z], scale: [0.42, 0.04, 0.42], color: theme.ring, style: STYLE.GLOW })
 
   // The backboard behind it, kept small and high so the follow camera behind the trainee
   // (west of the mat, looking east) sees it over their head rather than a wall of it: a
@@ -148,13 +133,14 @@ function buildPullUpBar(blocks, props, z, theme, height) {
     blocks.add(bx, by + bh + 1.62, z + 0.9, 1.6, 0.18, 0.5, '#2fae4a', STYLE.SMOOTH, 0.4)
     blocks.add(bx, by + bh + 1.66, z + 0.9, 0.5, 0.16, 1.6, '#4cd36a', STYLE.SMOOTH, 0.4)
   } else {
-    addDumbbell(props, bx, by + bh + 0.45, z, '#ffd21f', 1.6)
+    // A phone lying on its side on top, its screen to the pad.
+    addPhone(props, 'ice', { position: [bx, by + bh + 0.42, z], rotation: [0, 0, Math.PI / 2], scale: 1.5 })
   }
 }
 
 /**
- * The training spots: round two-tier mats in the bar's colours with a glowing ring round
- * the top, each with its pull-up bar over it and a gym floor beyond. The rounded parts go
+ * The throw pads: round two-tier mats in the pad's colours with a glowing ring round the
+ * top, each with its throwing lane and target beyond. The rounded parts go
  * into the world's props, the rest into its blocks: no draw calls of their own.
  */
 export function buildPads(blocks, props) {
@@ -170,7 +156,7 @@ export function buildPads(blocks, props) {
       props.add(CYL, { position: [PAD_X - 1.9, PAD_HEIGHT + 0.03, z + s * 1.6], scale: [0.46, 0.04, 0.46], color: theme.emblem === '#1d1f22' ? '#ffffff' : theme.emblem })
       props.add(CYL, { position: [PAD_X - 1.9, PAD_HEIGHT + 0.08, z + s * 1.6], scale: [0.26, 0.04, 0.26], color: theme.ring, style: STYLE.GLOW })
     }
-    buildPullUpBar(blocks, props, z, theme, padBarHeight(i))
+    buildThrowLane(blocks, props, z, theme)
     buildCourt(blocks, z, theme)
   }
 }

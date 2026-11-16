@@ -11,8 +11,8 @@ export const PORTAL_CENTER_Y = PORTALS[0].radius + 0.6
  */
 export const PORTAL_THEMES = {
   world2: {
-    ring: ['#7fd0ff', '#bfeaff'],
-    base: '#e6f6ff',
+    ring: ['#ff8a2a', '#ffd0a0', '#ffe9c8'],
+    base: '#16233f',
     swirl: { deep: [0.12, 0.45, 0.95], light: [0.75, 0.95, 1.0], core: [0.6, 0.6, 0.6] },
   },
 }

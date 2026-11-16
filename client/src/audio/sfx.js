@@ -1,5 +1,3 @@
-import { RUN_CADENCE } from '../game/kick'
-
 import { useQuality } from '../store/quality'
 import { createCrowd } from './crowd'
 import { createMusic } from './music'
@@ -264,40 +262,18 @@ function windStop() {
   liveCrowd()?.anticipate(false)
 }
 
-// --- The pull-up bar: a springy boing every rep ----------------------------------------
-
-/** Seconds between reps on a bar: one a TRAIN_INTERVAL (kick.RUN_CADENCE is its phase speed). */
-const REP = (Math.PI * 2) / RUN_CADENCE
-let bar = null
+// --- The throw pad: each practice throw makes its own sound -------------------------------
 
 /**
- * Starts the reps' sound under you: each pull-up a rubbery "boi-oing" as your arms snap
- * short and a soft creak as they stretch back out (scheduled a little ahead on the audio
- * clock, like the music). Stopped by treadmillStop (the template's name) when you let go.
+ * Stepping onto a throw pad. The practice throws themselves are heard as they happen (a
+ * whoosh as each phone leaves your hand, a clack as it lands: practiceThrow and
+ * practiceLand, from Player and PracticeThrows), so nothing loops here; the names are the
+ * template's, kept so the callers don't change.
  */
-function treadmillStart() {
-  if (!ctx || bar || silent() || ctx.state !== 'running') return
-  let next = ctx.currentTime + REP * 0.25
-  const schedule = () => {
-    next = Math.max(next, ctx.currentTime + 0.02)
-    while (next < ctx.currentTime + 0.4) {
-      const at = next - ctx.currentTime
-      tone(150, { type: 'triangle', at, duration: 0.2, volume: 0.06, slideTo: 380 })
-      tone(760, { type: 'sine', at: at + 0.02, duration: 0.07, volume: 0.02, slideTo: 1100 })
-      tone(120, { type: 'sawtooth', at: at + REP * 0.5, duration: 0.18, volume: 0.012, slideTo: 85 })
-      next += REP
-    }
-  }
-  bar = { timer: setInterval(schedule, 100) }
-  schedule()
-}
+function treadmillStart() {}
 
-/** Letting go of the bar: the reps stop. */
-function treadmillStop() {
-  if (!bar) return
-  clearInterval(bar.timer)
-  bar = null
-}
+/** Stepping off the pad. */
+function treadmillStop() {}
 
 // --- The stretch: rubber creaking as you pull back on the launch posts ---------------
 
@@ -680,7 +656,7 @@ export const sfx = {
     noise({ duration: 0.5, volume: 0.07, from: 200, to: 1800, q: 0.6 })
     ;[262, 330, 392, 523, 659, 784].forEach((f, i) => tone(f, { type: 'sawtooth', at: 0.1 + i * 0.07, duration: 0.25, volume: 0.06 }))
   },
-  /** Grabbing an unlocked pull-up bar: a soft rising chime, and the reps start. */
+  /** Stepping onto an unlocked throw pad: a soft rising chime, and the practice starts. */
   treadmillEnter() {
     if (!ready('treadmillEnter', 400)) return
     ;[523, 784, 1047].forEach((f, i) => tone(f, { type: 'sine', at: i * 0.05, duration: 0.28, volume: 0.07 }))
@@ -704,6 +680,77 @@ export const sfx = {
     if (!ready('rollStop')) return
     tone(120, { duration: 0.16, volume: 0.1, slideTo: 55 })
     tone(140, { at: 0.22, duration: 0.12, volume: 0.05, slideTo: 70 })
+  },
+  /** Flinging the phone off the edge (`power` 0-1, how good the throw): a whip of air and a rising whoosh. */
+  throwPhone(power = 1) {
+    if (!ready('throwPhone', 250)) return
+    noise({ duration: 0.08, volume: 0.22, from: 3000, to: 1200, q: 1 })
+    noise({ at: 0.04, duration: 0.5, volume: 0.1 * (0.6 + 0.4 * power), from: 400, to: 2600, q: 0.7 })
+    tone(330, { type: 'triangle', duration: 0.3, volume: 0.07, slideTo: 990 })
+  },
+  /** The phone smashing through the hotel's glass roof: a bright shatter and tinkling shards. */
+  glassSmash() {
+    if (!ready('glassSmash', 300)) return
+    liveCrowd()?.roar(0.6)
+    tone(90, { duration: 0.35, volume: 0.22, slideTo: 40 })
+    noise({ duration: 0.12, volume: 0.42, from: 6500, to: 3000, q: 0.5 })
+    noise({ duration: 0.5, volume: 0.18, from: 4200, to: 1400, q: 0.8 })
+    for (let i = 0; i < 12; i += 1) {
+      bell(2400 + Math.random() * 2600, { at: 0.06 + i * 0.045 + Math.random() * 0.03, volume: 0.035, decay: 0.16 })
+    }
+  },
+  /**
+   * Smashing through a floor (`n`: how many so far this drop): a crunch of concrete, a deep
+   * boom and rubble pattering down, with a ding that climbs with every floor.
+   */
+  floorSmash(n = 1) {
+    if (!ready('floorSmash', 70)) return
+    tone(85, { duration: 0.3, volume: 0.26, slideTo: 36 })
+    noise({ duration: 0.09, volume: 0.36, from: 2600, to: 900, q: 0.6 })
+    noise({ duration: 0.3, volume: 0.2, from: 1200, to: 260, q: 0.8 })
+    if (!lite()) for (let i = 0; i < 6; i += 1) tone(500 + Math.random() * 900, { type: 'square', at: 0.07 + i * 0.05 + Math.random() * 0.03, duration: 0.025, volume: 0.03 })
+    const step = Math.min(Math.max(0, n - 1), 14)
+    const f = 523 * Math.pow(2, step / 12)
+    tone(f, { type: 'triangle', at: 0.03, duration: 0.16, volume: 0.07, echo: true })
+  },
+  /** Stopping on the last floor (`power` 0-1): a heavy slam and a crack spreading out. */
+  phoneLand(power = 1) {
+    if (!ready('phoneLand', 300)) return
+    liveCrowd()?.roar(0.5 + 0.5 * power)
+    const p = 0.6 + 0.4 * power
+    tone(70, { duration: 0.7, volume: 0.34 * p, slideTo: 30 })
+    noise({ duration: 0.16, volume: 0.3 * p, from: 1800, to: 400, q: 0.7 })
+    noise({ at: 0.1, duration: 0.35, volume: 0.12 * p, from: 3000, to: 700, q: 1.6 })
+    tone(220, { type: 'square', at: 0.05, duration: 0.1, volume: 0.06, slideTo: 90 })
+  },
+  /** Furniture bursting apart under the falling phone: a woody crack and pieces clattering. */
+  furnitureSmash() {
+    if (!ready('furnitureSmash', 90)) return
+    noise({ duration: 0.06, volume: 0.22, from: 3200, to: 1400, q: 0.9 })
+    tone(160, { type: 'square', duration: 0.07, volume: 0.06, slideTo: 70 })
+    if (lite()) return
+    for (let i = 0; i < 4; i += 1) {
+      tone(700 + Math.random() * 700, { type: 'triangle', at: 0.05 + i * 0.045 + Math.random() * 0.02, duration: 0.03, volume: 0.035 })
+    }
+  },
+  /** A hop as the phone settles (`n` 1, 2, 3...): a plasticky clack, softer each time. */
+  phoneBounce(n = 1) {
+    const v = 1 / (1 + (n - 1) * 0.9)
+    tone(210, { type: 'square', duration: 0.05, volume: 0.06 * v, slideTo: 120 })
+    noise({ duration: 0.05, volume: 0.09 * v, from: 2600, to: 900, q: 1.1 })
+  },
+  /** A practice throw leaving your hand on a throw pad: a quick, light whoosh. */
+  practiceThrow() {
+    if (!ready('practiceThrow', 200)) return
+    noise({ duration: 0.18, volume: 0.07, from: 600, to: 2400, q: 0.8 })
+    tone(420, { type: 'triangle', duration: 0.12, volume: 0.03, slideTo: 880 })
+  },
+  /** A practice phone landing on its target: a plasticky clack and a tiny bounce. */
+  practiceLand() {
+    if (!ready('practiceLand', 90)) return
+    tone(260, { type: 'square', duration: 0.05, volume: 0.05, slideTo: 140 })
+    noise({ duration: 0.06, volume: 0.08, from: 2400, to: 900, q: 1.2 })
+    tone(520, { type: 'triangle', at: 0.12, duration: 0.04, volume: 0.025, slideTo: 300 })
   },
   windStart,
   windSet,

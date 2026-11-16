@@ -9,19 +9,13 @@
  * - BLOXITY_PORTAL_URL      the website
  * - BLOXITY_STATIC_URL      static files
  *
- * The production defaults below apply only to a variable that is missing; an injected
- * value always wins.
+ * Boxity hosting injects every one of them. No URL is written down here: a variable
+ * that is missing (a laptop) is null, and whatever needs it does without - joins are
+ * guests, leaderboard reports and ad rewards are skipped. To try sign-in locally, set
+ * BLOXITY_API_URL in the shell that starts the server (never in a file).
  */
 
-const DEFAULTS = {
-  env: 'prod',
-  apiUrl: 'https://api.bloxity.io',
-  matchmakerUrl: 'https://play.bloxity.io',
-  portalUrl: 'https://bloxity.io',
-  staticUrl: 'https://static.bloxity.io',
-}
-
-const GAME_FALLBACK = '1-arm-length'
+const GAME_FALLBACK = '1-phone-drop'
 
 /** 'https://x.io/' -> 'https://x.io', so paths can be appended with a single '/'. */
 const trimUrl = (url) => String(url).replace(/\/+$/, '')
@@ -42,16 +36,16 @@ const hostOf = (url) => {
  * trusts the ids clients claim, so development works without a Boxity account.
  */
 export function readBloxityEnv(env = process.env) {
-  const pick = (name, fallback) => (env[name] ? trimUrl(env[name]) : fallback)
-  const matchmakerUrl = pick('BLOXITY_MATCHMAKER_URL', DEFAULTS.matchmakerUrl)
+  const pick = (name) => (env[name] ? trimUrl(env[name]) : null)
+  const matchmakerUrl = pick('BLOXITY_MATCHMAKER_URL')
   return {
-    env: env.BLOXITY_ENV || DEFAULTS.env,
-    apiUrl: pick('BLOXITY_API_URL', DEFAULTS.apiUrl),
+    env: env.BLOXITY_ENV || 'none',
+    apiUrl: pick('BLOXITY_API_URL'),
     matchmakerUrl,
-    portalUrl: pick('BLOXITY_PORTAL_URL', DEFAULTS.portalUrl),
-    staticUrl: pick('BLOXITY_STATIC_URL', DEFAULTS.staticUrl),
-    /** Host the game's frontends are served under: <game>.play.bloxity.io and so on. */
-    playHost: hostOf(matchmakerUrl),
+    portalUrl: pick('BLOXITY_PORTAL_URL'),
+    staticUrl: pick('BLOXITY_STATIC_URL'),
+    /** Host the game's frontends are served under (<game>.<playHost>), or ''. */
+    playHost: matchmakerUrl ? hostOf(matchmakerUrl) : '',
     /** The slug the Boxity SDK and APIs know the game by. */
     gameSlug: env.BLOXITY_GAME_SLUG || env.BLOXITY_GAME_ID || GAME_FALLBACK,
     /** The hosted game's id (leaderboards, Legion). */
@@ -63,5 +57,5 @@ export function readBloxityEnv(env = process.env) {
 /** This process's settings. */
 export const bloxity = readBloxityEnv()
 
-/** `bloxity.apiUrl` + `path` ('/v1/...'). */
-export const apiUrl = (path, settings = bloxity) => `${settings.apiUrl}${path}`
+/** `bloxity.apiUrl` + `path` ('/v1/...'), or null when no API URL was injected. */
+export const apiUrl = (path, settings = bloxity) => (settings.apiUrl ? `${settings.apiUrl}${path}` : null)

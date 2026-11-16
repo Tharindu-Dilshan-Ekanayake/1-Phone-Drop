@@ -1,4 +1,4 @@
-import { dayNumber, LUCKY_CHANCE, LUCKY_GIFTS, QUEST_BONUS, QUEST_TIERS, QUEST_TYPES, QUESTS_PER_DAY, streakMultiplier } from './balance.js'
+import { dayNumber, DROP_ROOF, LUCKY_CHANCE, LUCKY_GIFTS, QUEST_BONUS, QUEST_TIERS, QUEST_TYPES, QUESTS_PER_DAY, streakMultiplier } from './balance.js'
 import { niceRound, payReward, winsForRolls } from './logic.js'
 import { mulberry32 } from './rng.js'
 
@@ -18,12 +18,16 @@ function hashString(text) {
   return h >>> 0
 }
 
-/** A quest's target for `tier`, scaled by your best flight where its kind asks. */
+/**
+ * A quest's target for `tier`, scaled by your deepest drop where its kind asks. A share of
+ * your best ('best') is a share of the depth under the glass roof - every drop falls the
+ * same DROP_ROOF to get there - so "90% of your best" is a real ask from the first day.
+ */
 function questTarget(type, tier, profile) {
   const raw = type.targets[tier]
-  const best = Math.max(120, profile.stats.bestDistance || 0)
+  const best = Math.max(DROP_ROOF + 120, profile.stats.bestDistance || 0)
   if (type.scale === 'total') return niceRound(raw * best)
-  if (type.scale === 'best') return niceRound(Math.max(80, raw * best))
+  if (type.scale === 'best') return niceRound(DROP_ROOF + Math.max(60, raw * (best - DROP_ROOF)))
   return raw
 }
 

@@ -3,7 +3,7 @@ import { after, before, test } from 'node:test'
 
 import { createProfile } from '../../shared/logic.js'
 import { PlayerSession } from '../../shared/session.js'
-import { asGuestId, resolveIdentity, verifyAdReward } from '../src/bloxityApi.js'
+import { newGuestId, resolveIdentity, verifyAdReward } from '../src/bloxityApi.js'
 import { readBloxityEnv } from '../src/bloxityEnv.js'
 import { BLOXITY_LEADERBOARDS, changedScores, chunk, leaderboardScores, sendScores } from '../src/bloxityLeaderboards.js'
 import {
@@ -11,6 +11,7 @@ import {
   claimGemGrant,
   closeStorage,
   loadProfile,
+  mongoUriFrom,
   openStorage,
   pendingGemGrants,
   recordGemGrant,
@@ -20,6 +21,7 @@ import {
 } from '../src/db.js'
 import { applyGemsFor, gemsWebhook, parseGemWebhook, profileIdOf, webhookSecretOk } from '../src/gems.js'
 import { activePlayers } from '../src/registry.js'
+import { issueSaveTicket, readSaveTicket, saveIdsFromTickets } from '../src/saveTickets.js'
 
 /**
  * A stand-in for fetch: answers each call with `reply(url, init)` -> `{ status, body }`
@@ -41,58 +43,59 @@ const local = readBloxityEnv({})
 
 // --- Environment -----------------------------------------------------------------
 
-test('Boxity URLs come from the environment, production only as the fallback', () => {
-  assert.equal(local.env, 'prod')
-  assert.equal(local.apiUrl, 'https://api.bloxity.io')
-  assert.equal(local.matchmakerUrl, 'https://play.bloxity.io')
-  assert.equal(local.portalUrl, 'https://bloxity.io')
-  assert.equal(local.staticUrl, 'https://static.bloxity.io')
-  assert.equal(local.gameSlug, '1-arm-length')
+test('Boxity URLs come only from the environment: none written down', () => {
+  assert.equal(local.env, 'none')
+  assert.equal(local.apiUrl, null)
+  assert.equal(local.matchmakerUrl, null)
+  assert.equal(local.portalUrl, null)
+  assert.equal(local.staticUrl, null)
+  assert.equal(local.playHost, '')
+  assert.equal(local.gameSlug, '1-phone-drop')
   assert.equal(local.hosted, false)
   assert.equal(hosted.apiUrl, 'https://api.stage.example', 'trailing slash trimmed')
   assert.equal(hosted.gameSlug, 'tire')
   assert.equal(hosted.hosted, true)
   assert.equal(readBloxityEnv({ BLOXITY_GAME_SLUG: 's', BLOXITY_GAME_ID: 'g' }).gameSlug, 's')
   assert.equal(readBloxityEnv({ NODE_ENV: 'production' }).hosted, true)
-  assert.equal(readBloxityEnv({ BLOXITY_MATCHMAKER_URL: 'https://play.stage.bloxity.io' }).playHost, 'play.stage.bloxity.io')
+  assert.equal(readBloxityEnv({ BLOXITY_MATCHMAKER_URL: 'https://play.stage.example' }).playHost, 'play.stage.example')
+  assert.equal(mongoUriFrom({ MONGO_URL: 'mongodb://m' }), 'mongodb://m', 'other spellings of the database URI')
+  assert.equal(mongoUriFrom({ DATABASE_URL: 'postgres://p' }), '', 'only a mongodb:// DATABASE_URL')
 })
 
 // --- Identity --------------------------------------------------------------------
 
-test('a valid token makes the Boxity account id the save key', async () => {
+test('a valid token makes the Boxity account id the save key, whatever the client claims', async () => {
   const fetchImpl = fakeFetch(() => ({ body: { valid: true, user: { _id: 'acc1', username: 'Real' }, carriedFrom: ['g1'] } }))
-  const id = await resolveIdentity({ playerId: 'someone-else', token: 'tok', name: 'Fake' }, { fetchImpl, settings: hosted })
-  assert.deepEqual(id, { playerId: 'acc1', verified: true, name: 'Real', carriedFrom: ['g1'] })
+  const id = await resolveIdentity({ playerId: 'someone-else', userId: 'x', token: 'tok', name: 'Fake' }, { fetchImpl, settings: hosted })
+  assert.deepEqual(id, { playerId: 'acc1', verified: true, name: 'Real', carriedFrom: ['g1'], ticketed: [] })
   const [call] = fetchImpl.calls
   assert.equal(call.url, 'https://api.stage.example/v1/auth/game-token/verify')
   assert.equal(call.init.headers.Authorization, 'Bearer tok')
   assert.deepEqual(call.body, { gameSlug: 'tire' })
 })
 
-test('a token Boxity rejects refuses the join', async () => {
-  const fetchImpl = fakeFetch(() => ({ status: 401, body: { valid: false } }))
-  await assert.rejects(resolveIdentity({ playerId: 'acc1', token: 'bad' }, { fetchImpl, settings: hosted }))
-})
-
-test('guests: their own guest id, anything else made into one when hosted', async () => {
+test('guests get an id the server makes; a claimed id is never used', async () => {
   const fetchImpl = fakeFetch(() => assert.fail('no token, no call'))
-  const opts = { fetchImpl, settings: hosted }
-  assert.deepEqual(await resolveIdentity({ playerId: 'guest-abc' }, opts), { playerId: 'guest-abc', verified: false, carriedFrom: [] })
-  assert.equal((await resolveIdentity({ playerId: 'acc1', token: null }, opts)).playerId, 'guest-acc1')
-  assert.equal((await resolveIdentity({ playerId: 'acc1' }, { fetchImpl, settings: local })).playerId, 'acc1', 'any id off Boxity')
-  await assert.rejects(resolveIdentity({}, opts))
-  assert.equal(asGuestId('x'.repeat(200)).length, 80)
+  const opts = { fetchImpl, settings: hosted, makeGuestId: () => 'guest-new' }
+  assert.deepEqual(await resolveIdentity({ playerId: 'acc1' }, opts), { playerId: 'guest-new', verified: false, carriedFrom: [], ticketed: [] })
+  assert.equal((await resolveIdentity({ playerId: 'guest-abc', token: null }, opts)).playerId, 'guest-new')
+  assert.equal((await resolveIdentity({}, opts)).playerId, 'guest-new')
+  assert.match(newGuestId(), /^guest-[0-9a-f-]{36}$/)
 })
 
-test('Boxity down: the player still gets in, as an unverified guest', async () => {
+test('a refused token, or Boxity down, leaves the player in the game as a guest', async () => {
+  const refused = fakeFetch(() => ({ status: 401, body: { valid: false } }))
   const down = fakeFetch(() => {
     throw new Error('ECONNREFUSED')
   })
   const failing = fakeFetch(() => ({ status: 503, body: null }))
-  for (const fetchImpl of [down, failing]) {
-    const id = await resolveIdentity({ playerId: 'acc1', token: 'tok' }, { fetchImpl, settings: hosted })
-    assert.deepEqual(id, { playerId: 'guest-acc1', verified: false, carriedFrom: [] })
+  for (const fetchImpl of [refused, down, failing]) {
+    const id = await resolveIdentity({ playerId: 'acc1', token: 'tok' }, { fetchImpl, settings: hosted, makeGuestId: () => 'guest-new' })
+    assert.deepEqual(id, { playerId: 'guest-new', verified: false, carriedFrom: [], ticketed: [] })
   }
+  // No API URL injected (off Boxity hosting): nothing to verify with, so a guest.
+  const none = fakeFetch(() => assert.fail('no API, no call'))
+  assert.equal((await resolveIdentity({ token: 'tok' }, { fetchImpl: none, settings: local })).verified, false)
 })
 
 test('an ad pays only when Boxity says the token is valid', async () => {
@@ -255,6 +258,34 @@ test('guest progress carries into a new account once', async () => {
 })
 
 // --- Open Rooms reporter -----------------------------------------------------------
+
+test('save tickets: a guest gets back into the save the server made for them', async () => {
+  const ticket = issueSaveTicket('guest-t1')
+  assert.ok(ticket, 'the secret comes from the database')
+  assert.equal(readSaveTicket(ticket), 'guest-t1')
+  const [head, sig] = ticket.split('.')
+  assert.equal(readSaveTicket(`${Buffer.from('guest-t2').toString('base64url')}.${sig}`), null, 'another id, same signature')
+  assert.equal(readSaveTicket(`${head}.${sig.slice(0, -2)}xx`), null, 'tampered signature')
+  assert.equal(readSaveTicket(issueSaveTicket('acc1')), null, 'never an account id')
+  assert.equal(readSaveTicket('junk'), null)
+  assert.deepEqual(saveIdsFromTickets([ticket, 'junk', ticket, issueSaveTicket('guest-t3')]), ['guest-t1', 'guest-t3'])
+
+  const fetchImpl = fakeFetch(() => assert.fail('no token, no call'))
+  const back = await resolveIdentity({ playerId: 'acc1', tickets: [ticket] }, { fetchImpl, settings: hosted })
+  assert.deepEqual(back, { playerId: 'guest-t1', verified: false, carriedFrom: [], ticketed: ['guest-t1'] })
+})
+
+test('a ticketed guest save carries into an account that has none yet', async () => {
+  const guest = createProfile('guest-t4', 'Guesty')
+  guest.wins = 777
+  await saveProfile(guest, 'test')
+  const ticket = issueSaveTicket('guest-t4')
+  const fetchImpl = fakeFetch(() => ({ body: { valid: true, user: { _id: 'acc11', username: 'Eleven' } } }))
+  const id = await resolveIdentity({ token: 'tok', tickets: [ticket] }, { fetchImpl, settings: hosted })
+  assert.deepEqual(id.ticketed, ['guest-t4'])
+  assert.equal(await carryOverGuest(id.playerId, id.ticketed, 'Eleven'), 'guest-t4')
+  assert.equal((await loadProfile('acc11', 'Eleven', 'test')).wins, 777)
+})
 
 test('the room reporter posts this pod\'s rooms to Boxity, and only when configured', async () => {
   const { installRoomReporter } = await import('../src/legionRoomReporter.js')

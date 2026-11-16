@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { runtime } from '../game/runtime'
+import { requestToss } from '../game/toss'
+import { useGame } from '../store/game'
 import { GRADIENTS } from './hud/style'
 
 /** Joystick travel radius, in CSS pixels. */
@@ -21,8 +23,9 @@ const roundButton = (size, background) => ({
 
 /**
  * On-screen controls for touch devices: a floating joystick that appears wherever the
- * left side of the screen is touched, and a jump button. Everything else is walking
- * onto things: the kick zone, a treadmill, a ball stand.
+ * left side of the screen is touched, a jump button and over it THROW, which throws your
+ * phone for Skill (a tap on the game does too). Everything else is walking onto things:
+ * the drop zone, a throw pad, a phone stand.
  *
  * Writes straight into `runtime.input` and moves the knob through refs, so dragging
  * never re-renders React.
@@ -32,6 +35,8 @@ export function TouchControls() {
   const baseRef = useRef(null)
   const knobRef = useRef(null)
   const active = useRef({ id: null, x: 0, y: 0 })
+  // No throwing at the drop zone (DROP is there), mid-drop or with a panel open.
+  const canThrow = useGame((s) => !s.zone.rollZone && !s.roll && !s.rollResult && !s.panel)
 
   // A touchscreen laptop can start with a mouse; show the controls on first touch.
   useEffect(() => {
@@ -126,6 +131,28 @@ export function TouchControls() {
           />
         </div>
       </div>
+
+      {canThrow && (
+        <button
+          type="button"
+          aria-label="Throw your phone"
+          className="touch-throw pp-btn pp-chunky absolute z-20 flex touch-none flex-col items-center justify-center rounded-full text-white"
+          style={roundButton(96, GRADIENTS.goldButton)}
+          onPointerDown={(e) => {
+            e.preventDefault()
+            requestToss()
+          }}
+        >
+          <span className="pp-gloss" style={{ borderRadius: '48px 48px 28px 28px' }} />
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="#fff" stroke="#111" strokeWidth="1.6" strokeLinejoin="round">
+            <rect x="7" y="2.5" width="10" height="19" rx="2.2" transform="rotate(-20 12 12)" />
+            <path d="M3 7.5l3 1.2M2.6 11.5l3 .4M3.4 15.4l2.8-.6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+          <span style={{ fontSize: 15, fontWeight: 900, lineHeight: 1, marginTop: 1, letterSpacing: 0.5, textShadow: '0 2px 0 #111, 0 0 3px #111' }}>
+            THROW
+          </span>
+        </button>
+      )}
 
       <button
         type="button"

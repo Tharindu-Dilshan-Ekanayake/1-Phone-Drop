@@ -18,7 +18,7 @@ export const runtime = {
     yaw: Math.PI,
     speed: 0,
     grounded: true,
-    /** 'idle' | 'walk' | 'run' (training on a pad) | 'jump' - what other players see. */
+    /** 'idle' | 'walk' | 'jump' | 'pull' | 'toss0'/'toss1' (a throw; they alternate) - what other players see. */
     anim: 'idle',
     /** Set when the controller should ignore input (while your tire rolls). */
     frozen: false,

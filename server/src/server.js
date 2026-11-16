@@ -6,7 +6,7 @@ import { WebSocketTransport } from '@colyseus/ws-transport'
 import { resolveIdentity } from './bloxityApi.js'
 import { bloxity } from './bloxityEnv.js'
 import { startBloxityLeaderboards } from './bloxityLeaderboards.js'
-import { closeStorage, openStorage } from './db.js'
+import { closeStorage, openStorage, storageKind } from './db.js'
 import { gemsWebhook, startGemsPoller } from './gems.js'
 import { installRoomReporter } from './legionRoomReporter.js'
 import { startLeaderboards } from './leaderboards.js'
@@ -41,7 +41,7 @@ function routes(app) {
 
   app.get('/api/health', (_req, res) => {
     // `game` lets a development client tell this server from another project's.
-    res.json({ ok: true, game: '1-arm-length', players: activePlayers.size })
+    res.json({ ok: true, game: 'phone-plunge', players: activePlayers.size, db: storageKind() })
   })
 
   /**
@@ -53,8 +53,8 @@ function routes(app) {
     const token = req.body?.token
     if (typeof token !== 'string' || !token) return res.status(401).json({ error: 'Missing token' })
     try {
-      const identity = await resolveIdentity({ token, playerId: 'unverified' })
-      if (!identity.verified) return res.status(503).json({ error: 'Boxity unavailable' })
+      const identity = await resolveIdentity({ token })
+      if (!identity.verified) return res.status(401).json({ error: 'Token not verified' })
       res.json({ accessToken: token, user: { legionId: identity.playerId } })
     } catch {
       res.status(401).json({ error: 'Invalid token' })
@@ -95,3 +95,7 @@ console.log(
   `[server] listening on port ${PORT} (Boxity ${bloxity.env}, ${bloxity.apiUrl})` +
     `${process.env.POD_NAME ? ` (${process.env.POD_NAME}, ${process.env.BLOXITY_CHANNEL})` : ''}`,
 )
+if (bloxity.hosted && !bloxity.apiUrl) {
+  // Boxity hosting injects it; without it nobody's sign-in can be checked.
+  console.error('[server] !!! BLOXITY_API_URL is not set: signed-in players will play as guests, and ad rewards and leaderboard reports are off.')
+}

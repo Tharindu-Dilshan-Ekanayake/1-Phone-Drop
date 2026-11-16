@@ -27,11 +27,12 @@ import TutorialArrows from './world/TutorialArrows'
 import Lighting from './Lighting'
 import PerfProbe from './PerfProbe'
 import Player from './Player'
+import PracticeThrows from './PracticeThrows'
+import TossInput from './TossInput'
 import ShaderWarmup from './ShaderWarmup'
 import { FOG, SKY } from './sceneStyle'
 import Sky from './Sky'
 import World from './world/World'
-import LaunchReach from './world/LaunchReach'
 import { showLobbySky } from './worldLook'
 
 // r3f-perf is a dev-only overlay (?perf in the URL). The DEV check is static, so the
@@ -41,7 +42,8 @@ const DevPerf = import.meta.env.DEV
   : null
 const showDevPerf = import.meta.env.DEV && new URLSearchParams(window.location.search).has('perf')
 
-// The runway is its own chunk, fetched once the lobby is on screen so it never delays
+// The drop scene (the hotel, the city below and everything that happens as the phone
+// falls) is its own chunk, fetched once the lobby is on screen so it never delays
 // time-to-playable.
 const Roll = lazy(() => import('./roll/Roll'))
 
@@ -86,8 +88,8 @@ function ViewDistance({ far }) {
 
 /**
  * The camera's vertical field of view for a screen `aspect` wide: 60 degrees on a
- * landscape screen; wider on one held upright, so the runway, the pull-up bars and the arms
- * still fit across a phone in portrait instead of being cropped to a narrow slit.
+ * landscape screen; wider on one held upright, so the lobby and the hotel below still fit
+ * across a phone in portrait instead of being cropped to a narrow slit.
  */
 const fovForAspect = (aspect) => (aspect >= 1 ? 60 : Math.min(84, 60 / Math.sqrt(Math.max(0.3, aspect))))
 
@@ -250,7 +252,6 @@ export function GameScene({ onReady }) {
         <WorldSky world={world} />
         <Lighting />
         <World />
-        <LaunchReach />
         <WorldLabels />
         <TireShop />
         <EggDisplays />
@@ -265,6 +266,8 @@ export function GameScene({ onReady }) {
         <RemotePlayers />
         <RemoteAvatars />
         <Player />
+        <PracticeThrows />
+        <TossInput />
         <BlobShadows />
         <GainFX />
         {warmedUp && firstFrame && (

@@ -40,6 +40,11 @@
   right: 14px;
   bottom: 14px;
 }
+/* Over the jump button, under the same thumb. */
+.touch-throw {
+  right: 1px;
+  bottom: 100px;
+}
 
 @media (orientation: portrait) {
   :root {
@@ -64,6 +69,9 @@
   }
   .touch-jump {
     bottom: calc(14px + var(--px) * 300);
+  }
+  .touch-throw {
+    bottom: calc(100px + var(--px) * 300);
   }
 }
 

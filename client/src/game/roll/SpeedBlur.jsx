@@ -101,16 +101,32 @@ export function SpeedBlur({ samples, antialias }) {
   /** The renderer, kept to hand stats counting back to it on the way out. */
   const glRef = useRef(null)
 
+  const scene = useThree((s) => s.scene)
+  const camera = useThree((s) => s.camera)
   useEffect(() => {
     const pass = createPass(samples, antialias)
     passRef.current = pass
-    // Compiled now, during the push-off, not mid-ride when the blur first kicks in.
+    // Compiled now, during the throw, not mid-fall when the blur first kicks in.
     gl.compileAsync(pass.scene, pass.camera).catch(() => {})
+    // Drawn into the blur's target, every material needs its linear-output variant too:
+    // gathered now with the target bound (and everything hidden shown for the moment),
+    // or a dozen programs compile in the middle of the fall the first time it blurs.
+    const previous = gl.getRenderTarget()
+    const hidden = []
+    scene.traverse((object) => {
+      if (object.visible || object.isLight) return
+      hidden.push(object)
+      object.visible = true
+    })
+    gl.setRenderTarget(pass.target)
+    gl.compileAsync(scene, camera).catch(() => {})
+    gl.setRenderTarget(previous)
+    for (const object of hidden) object.visible = false
     return () => {
       passRef.current = null
       pass.dispose()
     }
-  }, [gl, samples, antialias])
+  }, [gl, samples, antialias, scene, camera])
 
   useEffect(
     () => () => {

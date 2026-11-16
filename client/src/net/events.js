@@ -9,7 +9,7 @@ import { getGame } from '../store/game'
 import { fadeThrough } from '../ui/fade'
 import { refreshRemoteWorlds } from './remotePlayers'
 
-/** A point above wherever you're watching: you in the lobby, or your rolling tire. */
+/** A point above wherever you're watching: you in the lobby, or your falling phone. */
 const atPlayer = (dy = 1.2) => {
   const p = roll.active ? roll.position : runtime.player.position
   return { x: p.x, y: p.y + dy, z: p.z }
@@ -31,14 +31,14 @@ export function handleServerEvent(type, payload) {
         sfx.rebirth()
         burst({ ...atPlayer(), count: 60, speed: 9 })
       } else if (game.profileLoaded && payload.profile.ownedTires.length > before.ownedTires.length) {
-        // A new ball: a shower of confetti and its name up in lights.
+        // A new phone: a shower of confetti and its name up in lights.
         sfx.buy()
         sfx.wins()
         burst({ ...atPlayer(2.5), count: 60, palette: 'confetti', speed: 9 })
         const tire = TIRES.find((t) => t.id === payload.profile.equippedTire)
-        // The first ball bought ends the tutorial: say so too.
+        // The first phone bought ends the tutorial: say so too.
         const done = before.tutorialStep < TUTORIAL.length && payload.profile.tutorialStep >= TUTORIAL.length
-        if (tire) game.showToast(`NEW ARMS: ${tire.name}!${done ? ' Tutorial complete - have fun!' : ''}`)
+        if (tire) game.showToast(`NEW PHONE: ${tire.name}!${done ? ' Tutorial complete - have fun!' : ''}`)
       }
       break
     }
@@ -47,7 +47,7 @@ export function handleServerEvent(type, payload) {
       game.patchProfile({
         health: payload.health,
         level: payload.level,
-        // Gains from rolling and walking aren't pad training.
+        // Throws off the pads aren't pad training.
         ...(payload.source === 'pad' ? { lastPad: payload.pad } : {}),
       })
       queueTrainFx(payload)
@@ -58,7 +58,7 @@ export function handleServerEvent(type, payload) {
       break
 
     case 'roll': {
-      // (How well you let go shows as you shoot past the posts: rollControl.)
+      // (How well you threw shows as the phone leaves your hand: rollControl.)
       beginRoll(payload)
       break
     }
@@ -72,7 +72,7 @@ export function handleServerEvent(type, payload) {
     case 'streak':
       // Played past midnight: the streak's next day starts now.
       sfx.wins()
-      game.showToast(`DAY ${payload.days} STREAK! x${payload.multiplier.toFixed(1)} Wins on every launch`)
+      game.showToast(`DAY ${payload.days} STREAK! x${payload.multiplier.toFixed(1)} Wins on every drop`)
       break
 
     case 'pack':
@@ -104,7 +104,7 @@ export function handleServerEvent(type, payload) {
       sfx.wins()
       sfx.levelUp()
       burst({ ...atPlayer(2), count: 70, palette: 'gold', speed: 10 })
-      game.showToast('SECRET STAR FOUND! x2 POWER FOREVER!')
+      game.showToast('SECRET STAR FOUND! x2 SKILL FOREVER!')
       break
     }
 
@@ -117,7 +117,7 @@ export function handleServerEvent(type, payload) {
       const world = WORLDS[payload.world]
       game.showToast(
         payload.world === 1
-          ? `WELCOME TO ${world.name.toUpperCase()}! x${world.wins} Wins on every launch!${payload.first ? ' A Secret Star is hidden here...' : ''}`
+          ? `WELCOME TO ${world.name.toUpperCase()}! x${world.wins} Wins on every drop!${payload.first ? ' A Secret Star is hidden here...' : ''}`
           : `Back in ${world.name}!`,
       )
       break
