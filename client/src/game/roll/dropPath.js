@@ -63,13 +63,12 @@ const ROOF_YAW = Math.sin(5) * 0.5
 
 /*
  * Inside the hotel the phone really falls: from the glass it accelerates under gravity
- * down each room, slams onto the next slab, loses most of its speed smashing through it,
- * and accelerates again - a speed sawtooth, not a smooth glide. Shallow drops fall at
- * GRAVITY_MIN; deeper ones fall faster still so the whole fall fits the time the authority
- * gave (rollDuration). What time is left over on a shallow drop goes into the slabs
- * putting up a fight: the phone slams down on one, sinks in as it cracks (CRUNCH), and
- * bursts through. Between slabs it flutters like any flat thing falling: rocking up to one
- * side and back, so it always meets the next slab flat, its spin kicked by every hit.
+ * down each room, smashes straight through the next slab the moment it reaches it -
+ * losing half its speed - and accelerates again: a speed sawtooth, not a smooth glide.
+ * Shallow drops fall at GRAVITY_MIN; deeper ones faster, so the whole fall fits the time
+ * the authority gave (rollDuration). Between slabs it flutters like any flat thing
+ * falling: rocking up to one side and back, so it meets the next slab flat, its spin
+ * kicked by every hit. It lands, hops, rattles still, and the drop is over (`settleAt`).
  */
 /** The weakest gravity in the hotel (m/s^2): a toy world, a little stronger than real. */
 const GRAVITY_MIN = 22
@@ -77,11 +76,6 @@ const GRAVITY_MIN = 22
 const SLAB_KEEP = 0.5
 /** Its speed just through the glass roof, in units where gravity is 1 (as v = sqrt(2h)). */
 const ROOF_SPEED = Math.sqrt(2 * 3)
-/** A slab's fight: the longest the phone sits on one cracking it, and the shortest worth showing (s). */
-const CRUNCH_MAX = 0.55
-const CRUNCH_MIN = 0.07
-/** How far it sinks into a slab before it gives way. */
-const SINK = PHONE_LIE + 0.05
 /** Bouncing once it stops: gravity, the first hop's height range, and how much each hop keeps. */
 const BOUNCE_G = 50
 const BOUNCE_MIN = 0.22
@@ -90,6 +84,8 @@ const BOUNCE_KEEP = 0.42 * 0.42
 const BOUNCES = 4
 /** The rattle on its edge after the hops, before it lies still (s). */
 const RATTLE = 0.45
+/** Lying still this long after the rattle before the result shows (s). */
+const STILL = 0.25
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x))
 /** A repeatable random number in [0, 1) for drop `seed`, slot `n`. */
@@ -99,10 +95,8 @@ const rand = (seed, n) => {
 }
 /** How fast (rad/s) and which way it spins down room `j`: every hit sends it a new way. */
 const spinOf = (seed, j) => (rand(seed, j) < 0.5 ? -1 : 1) * (1.2 + 3.2 * rand(seed, j + 100))
-/** Depth below the roof where the phone's middle is as it meets slab `i`. */
-const touchDepth = (i) => (i + 1) * FLOOR_H - PHONE_LIE
-/** Length (m) of fall `j` of a drop stopping on floor `end`: roof (or a slab) to the next slab (or the floor). */
-const fallLength = (j) => (j === 0 ? touchDepth(0) : touchDepth(j) - (touchDepth(j - 1) + SINK))
+/** Length (m) of fall `j` of a drop stopping on floor `end`: the roof or a slab to the next slab, or (the last) to lying on the floor. */
+const fallLength = (j, end) => (j === end ? FLOOR_H - PHONE_LIE : FLOOR_H)
 
 /** The floor a drop to `distance` stops on. */
 export const landingFloor = (distance) => zoneIndexAt(distance)
@@ -169,16 +163,10 @@ export const createDropState = () => ({
   roofBroken: false,
   /** True once it has stopped on its floor (bouncing, then still). */
   landed: false,
-  /** Slabs it has slammed onto so far (each then cracks for `crunch` s before it breaks). */
-  impacts: 0,
-  crunch: 0,
-  /** What it's cracking right now: -2 nothing, -1 the glass roof, else that floor's slab; and how far (0-1). */
-  cracking: -2,
-  crackT: 0,
-  /** It has hit the glass roof (which may hold for a beat before it shatters: `roofBroken`). */
-  roofHit: false,
   /** Hops completed after stopping (each a softer thud). */
   bounces: 0,
+  /** Seconds into the drop when it has stopped bouncing and lies still: the drop is over. */
+  settleAt: 0,
   /** Still in your hand. */
   inHand: true,
   /** Never true in a drop: kept for the template's effects that ask. */
@@ -198,11 +186,8 @@ export function dropState(elapsed, drop, out) {
   out.end = end
   out.crashed = false
   out.tilt = 0
-  out.impacts = 0
   out.bounces = 0
-  out.cracking = -2
-  out.crackT = 0
-  out.roofHit = elapsed >= T_ROOF
+  out.settleAt = drop.duration
   if (elapsed < T_RELEASE) {
     // Wound up and swung: the avatar holds it (Player draws it in the hand).
     out.phase = 'throw'
@@ -255,106 +240,70 @@ export function dropState(elapsed, drop, out) {
   let v = ROOF_SPEED
   let vLand = v
   for (let j = 0; j <= end; j += 1) {
-    const vOut = Math.sqrt(v * v + 2 * fallLength(j))
+    const vOut = Math.sqrt(v * v + 2 * fallLength(j, end))
     unit += vOut - v
     vLand = vOut
     v = vOut * SLAB_KEEP
   }
   // ... then the gravity that fits it into the time given (times go as 1/sqrt(g)), never
-  // weaker than GRAVITY_MIN, and what's left over shared out as the slabs' fight.
+  // weaker than GRAVITY_MIN. A shallow drop simply lands sooner.
   const g = Math.max(GRAVITY_MIN, (unit / towerTime) ** 2)
   const rootG = Math.sqrt(g)
-  const fallTime = unit / rootG
-  // The glass roof holds for a beat too, so even a one-floor drop has its moment.
-  let crunch = Math.min(CRUNCH_MAX, (towerTime - fallTime) / (end + 1))
-  if (crunch < CRUNCH_MIN) crunch = 0
-  out.crunch = crunch
-  const tBreak = T_ROOF + crunch
-  const tLand = tBreak + fallTime + end * crunch
-  out.roofBroken = elapsed >= tBreak
+  const tLand = T_ROOF + unit / rootG
+  out.roofBroken = true
   const seed = drop.distance
+
+  // The hops once it lands (how high the first goes depends on how fast it hit), fitted
+  // into most of the time left: when they and the rattle are done, the drop is over.
+  const first = Math.min(BOUNCE_MAX, Math.max(BOUNCE_MIN, vLand * rootG * 0.011))
+  let hopsTime = 0
+  for (let k = 0, hk = first; k < BOUNCES; k += 1, hk *= BOUNCE_KEEP) hopsTime += 2 * Math.sqrt((2 * hk) / BOUNCE_G)
+  const pace = Math.max(1, hopsTime / Math.max(0.2, (drop.duration - tLand) * 0.8))
+  out.settleAt = Math.min(drop.duration, tLand + hopsTime / pace + RATTLE + STILL)
 
   if (elapsed < tLand) {
     out.phase = 'tower'
     out.landed = false
-    if (elapsed < tBreak) {
-      // On the glass: it holds, cracking out from under the phone, until it shatters.
-      const c = (elapsed - T_ROOF) / crunch
-      out.position.set(HOTEL.x + Math.sin((elapsed - T_ROOF) * 83) * 0.04 * (1 - c), ROOF_Y, HOTEL.z)
-      out.speed = 0
-      out.yaw = ROOF_YAW
-      out.tilt = 0.05 * Math.sin((elapsed - T_ROOF) * 95) * (1 - c)
-      out.cracking = -1
-      out.crackT = c
-      out.floor = -1
-      out.slabs = 0
-      out.meter = DROP_ROOF
-      return out
-    }
-    let tau = elapsed - tBreak
+    let tau = elapsed - T_ROOF
     let yaw = ROOF_YAW
     let depth = 0
     v = ROOF_SPEED * rootG
     for (let j = 0; j <= end; j += 1) {
-      const top = j === 0 ? 0 : touchDepth(j - 1) + SINK
-      const vOut = Math.sqrt(v * v + 2 * g * fallLength(j))
+      const vOut = Math.sqrt(v * v + 2 * g * fallLength(j, end))
       const span = (vOut - v) / g
       const spin = spinOf(seed, j)
-      if (tau < span) {
-        // Falling free down room j: faster and faster.
-        depth = top + v * tau + 0.5 * g * tau * tau
-        out.speed = v + g * tau
-        out.yaw = yaw + spin * tau
+      if (tau < span || j === end) {
+        // Falling free down room j: faster and faster, until it smashes through the next slab.
+        const t = Math.min(tau, span)
+        depth = j * FLOOR_H + v * t + 0.5 * g * t * t
+        out.speed = v + g * t
+        out.yaw = yaw + spin * t
         // Fluttering: rocked up to one side and back, flat again as it meets the slab.
         const calm = Math.min(1, span / 0.3)
-        const u = tau / span
+        const u = t / span
         out.tumble = (rand(seed, j + 200) < 0.5 ? -1 : 1) * (0.25 + 0.6 * rand(seed, j + 300)) * calm * Math.sin(Math.PI * u)
         out.tilt = (0.12 + 0.25 * rand(seed, j + 400)) * calm * Math.sin(Math.PI * 2 * u)
-        out.impacts = j
         break
       }
       tau -= span
       yaw += spin * span
-      if (j === end) break
-      if (tau < crunch) {
-        // Slammed down on slab j: sinking into it as it cracks, shuddering, until it gives.
-        const c = tau / crunch
-        depth = touchDepth(j) + SINK * c * c * c
-        out.speed = 0
-        out.yaw = yaw
-        out.tilt = 0.05 * Math.sin(tau * 95) * (1 - c)
-        out.impacts = j + 1
-        out.cracking = j
-        out.crackT = c
-        break
-      }
-      tau -= crunch
-      out.impacts = j + 1
       v = vOut * SLAB_KEEP
     }
     out.position.set(HOTEL.x, ROOF_Y - depth, HOTEL.z)
-    if (out.cracking >= 0) out.position.x += Math.sin(elapsed * 83) * 0.04 * (1 - out.crackT)
   } else {
-    // Stopped on its floor: hops that die away (how high the first goes depends on how
-    // fast it hit), a flip on the first, a rattle on its edge, then lying still.
-    out.phase = elapsed >= drop.duration ? 'stopped' : 'settle'
+    // Stopped on its floor: hops that die away, a flip on the first, a rattle on its
+    // edge, then lying still.
+    out.phase = elapsed >= out.settleAt ? 'stopped' : 'settle'
     out.speed = 0
     out.landed = true
-    out.impacts = end
     // Facing as it was when it hit: the fall's spins, room by room.
     let yaw = ROOF_YAW
     v = ROOF_SPEED * rootG
     for (let j = 0; j <= end; j += 1) {
-      const vOut = Math.sqrt(v * v + 2 * g * fallLength(j))
+      const vOut = Math.sqrt(v * v + 2 * g * fallLength(j, end))
       yaw += spinOf(seed, j) * ((vOut - v) / g)
       v = vOut * SLAB_KEEP
     }
-    const first = Math.min(BOUNCE_MAX, Math.max(BOUNCE_MIN, vLand * rootG * 0.011))
-    // The hops, fitted into most of the time there is to settle.
-    let total = 0
-    for (let k = 0, hk = first; k < BOUNCES; k += 1, hk *= BOUNCE_KEEP) total += 2 * Math.sqrt((2 * hk) / BOUNCE_G)
-    const room = Math.max(0.2, (drop.duration - tLand) * 0.8)
-    const pace = Math.max(1, total / room)
     let q = (elapsed - tLand) * pace
     let hop = 0
     let flip = 0

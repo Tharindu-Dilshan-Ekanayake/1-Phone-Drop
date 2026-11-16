@@ -239,17 +239,10 @@ function cameraAim(elapsed, outOffset, outLook) {
     outOffset.set(0.6 * (1 - u), 4 + 6.5 * u, 8 - 4.4 * u)
     outLook.set(0, -3 - 2 * u, -3 * (1 - u))
   } else if (roll.phase === 'tower') {
-    if (roll.cracking > -2) {
-      // Held up by a slab (or the glass) for a beat: eased back a little so the room
-      // around it shows as the crack spreads.
-      outOffset.set(0, 8.6, 4.4)
-      outLook.set(0, -0.6, -1.2)
-    } else {
-      // Straight down through the hotel, just behind the phone so the camera comes
-      // through the holes it punches.
-      outOffset.set(0, 7.4, 2.1)
-      outLook.set(0, -1, -0.3)
-    }
+    // Straight down through the hotel, just behind the phone so the camera comes through
+    // the holes it punches.
+    outOffset.set(0, 7.4, 2.1)
+    outLook.set(0, -1, -0.3)
   } else {
     // Stopped: close over the phone as it slams down, then drawing back to the south to
     // take in the room it wrecked - its north wall, the crater, the rubble.

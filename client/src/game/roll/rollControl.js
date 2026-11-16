@@ -100,8 +100,6 @@ export function advanceRoll(clockTime) {
   const wasRoof = roll.roofBroken
   const wasSlabs = roll.slabs
   const wasLanded = roll.landed
-  const wasRoofHit = roll.roofHit
-  const wasImpacts = roll.impacts
   const wasBounces = roll.bounces
   const dt = roll.lastNow ? Math.min(now - roll.lastNow, 100) : 0
   roll.lastNow = now
@@ -115,14 +113,13 @@ export function advanceRoll(clockTime) {
   dropState((now - roll.startedAt - roll.lag) / 1000, roll, roll)
 
   if (wasPhase === 'throw' && roll.phase !== 'throw') release(now)
-  // Slamming onto something that holds for a beat before it gives (only when it does).
-  if (!wasRoofHit && roll.roofHit && roll.crunch > 0 && !roll.roofBroken) slam(now, -1)
   if (!wasRoof && roll.roofBroken) smashRoof(now)
   // (On a very slow frame it could get through two at once: each gets its smash.)
   for (let i = wasSlabs; i < roll.slabs; i += 1) smashFloor(now, i)
-  if (roll.crunch > 0) for (let i = Math.max(wasImpacts, roll.slabs); i < roll.impacts; i += 1) slam(now, i)
   if (!wasLanded && roll.landed) land(now)
   for (let k = wasBounces; k < roll.bounces; k += 1) sfx.phoneBounce(k + 1)
+  // Lying still: the result, straight away rather than at the authority's last second.
+  if (roll.phase === 'stopped' && !roll.stopped) stopRoll()
   return roll
 }
 
@@ -163,17 +160,6 @@ function release(now) {
   if (fx.fire && getQuality().particles) fireBurst(p.x, p.y, p.z, fx.fire)
   showHit(grade.id)
   sfx.gradeHit(grade.id)
-}
-
-/**
- * Slammed onto the glass roof (`index` -1) or floor `index`'s slab, which holds for a
- * moment: a heavy thud, the creak of it cracking (Tower.jsx grows the crack), a jolt.
- */
-function slam(now, index) {
-  roll.hitAt = now
-  sfx.slamCrack(index < 0)
-  if (index < 0) return
-  spawnDebris({ x: HOTEL.x, y: floorY(index) + 0.3, z: HOTEL.z, count: 6, colors: ['#d8dee8', '#ffffff', '#b7bdc8'], speed: 5, up: 3, size: 0.28, floor: floorY(index), spread: 1.6 })
 }
 
 /** Through the glass roof: a shatter, shards everywhere (Tower.jsx), a jolt and a beat of slow motion. */
@@ -289,36 +275,47 @@ export function beginRoll(result) {
 
   // The wind rushing past as it falls, and a cartoon whistle down to the roof.
   timers.push(setTimeout(() => sfx.fallWhistle(2.2), (T_RELEASE + 0.1) * 1000))
-  timers.push(
-    setTimeout(() => {
-      roll.stopped = true
-      sfx.wins()
-      const f = roll.position
-      burst({ x: f.x, y: f.y + 2, z: f.z, count: 50, palette: 'gold', speed: 9 })
-      game.endRoll()
-      // A floor reached for the first time ever: its name and the prize, once.
-      const floors = zones()
-      for (const zi of roll.discovered) {
-        game.showToast(`NEW FLOOR: ${floors[zi].name}! +${formatNumber(floors[zi].discover)} Wins`)
-      }
-      // A lucky gift: a present bursting open over the phone, and what was in it.
-      const gift = roll.gift
-      if (gift) {
-        timers.push(
-          setTimeout(
-            () => {
-              sfx.reveal()
-              burst({ x: f.x, y: f.y + 2.4, z: f.z, count: 70, palette: 'confetti', speed: 11 })
-              const what = gift.wins ? `+${formatNumber(gift.wins)} Wins` : gift.label
-              game.showToast(`LUCKY GIFT! ${gift.wins ? `${gift.label}: ${what}` : what}`)
-            },
-            roll.discovered.length ? 1600 : 500,
-          ),
-        )
-      }
-      timers.push(setTimeout(() => fadeThrough(finishRoll), RESULT_HOLD_MS))
-    }, result.duration * 1000),
-  )
+  // The result shows as soon as the phone lies still (advanceRoll); this is the backstop
+  // for a tab that stopped drawing frames.
+  timers.push(setTimeout(stopRoll, result.duration * 1000))
+}
+
+/**
+ * The phone lies still: the Wins pour in, a first-time floor and any lucky gift are
+ * announced, and after a moment you're back at the edge. Once per drop.
+ */
+function stopRoll() {
+  if (!roll.active || roll.stopped) return
+  roll.stopped = true
+  const game = getGame()
+  sfx.wins()
+  const f = roll.position
+  burst({ x: f.x, y: f.y + 2, z: f.z, count: 50, palette: 'gold', speed: 9 })
+  game.endRoll()
+  // A floor reached for the first time ever: its name and the prize, once.
+  const floors = zones()
+  for (const zi of roll.discovered) {
+    game.showToast(`NEW FLOOR: ${floors[zi].name}! +${formatNumber(floors[zi].discover)} Wins`)
+  }
+  // A lucky gift: a present bursting open over the phone, and what was in it.
+  const gift = roll.gift
+  if (gift) {
+    timers.push(
+      setTimeout(
+        () => {
+          sfx.reveal()
+          burst({ x: f.x, y: f.y + 2.4, z: f.z, count: 70, palette: 'confetti', speed: 11 })
+          const what = gift.wins ? `+${formatNumber(gift.wins)} Wins` : gift.label
+          game.showToast(`LUCKY GIFT! ${gift.wins ? `${gift.label}: ${what}` : what}`)
+        },
+        roll.discovered.length ? 1600 : 500,
+      ),
+    )
+  }
+  // Back to the edge once the result has shown - and never before the authority has
+  // finished the drop, so the next one is accepted.
+  const ready = roll.startedAt + roll.duration * 1000 + 400 - performance.now()
+  timers.push(setTimeout(() => fadeThrough(finishRoll), Math.max(RESULT_HOLD_MS, ready)))
 }
 
 /**

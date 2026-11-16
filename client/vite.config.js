@@ -18,28 +18,32 @@ const LOCAL_BLOXITY_ENV = {
 }
 
 /**
- * The environment to hand the page in `vite dev`: a local Boxity stack by default, or
- * any other one given whole as JSON in the shell (never in a file), e.g.
- *   BLOXITY_DEV_ENV='{"env":"stage","apiUrl":"...","playUrl":"...","portalUrl":"...","staticUrl":"..."}' npm run dev
+ * The environment to hand the page in `vite dev`, from BLOXITY_DEV_ENV in the shell
+ * (never a file):
+ *   (unset)  nothing: the SDK uses its own defaults, so avatars, skins and guest
+ *            pictures load as on Boxity (signing in needs the real portal, though)
+ *   local    a local Boxity stack (LOCAL_BLOXITY_ENV)
+ *   {...}    any other environment, given whole as JSON:
+ *            BLOXITY_DEV_ENV='{"env":"stage","apiUrl":"...","playUrl":"...","portalUrl":"...","staticUrl":"..."}'
  */
 function devEnvironment() {
   const raw = process.env.BLOXITY_DEV_ENV
-  if (!raw) return LOCAL_BLOXITY_ENV
+  if (!raw) return null
+  if (raw === 'local') return LOCAL_BLOXITY_ENV
   try {
     const env = JSON.parse(raw)
     if (env && typeof env === 'object' && env.env && env.apiUrl && env.playUrl && env.portalUrl && env.staticUrl) return env
   } catch {
     // Falls through to the warning.
   }
-  console.warn('[bloxity] BLOXITY_DEV_ENV must be a whole environment as JSON; using the local stack')
-  return LOCAL_BLOXITY_ENV
+  console.warn('[bloxity] BLOXITY_DEV_ENV must be "local" or a whole environment as JSON; using the SDK defaults')
+  return null
 }
 
 /**
- * `vite dev` only (`apply: 'serve'`, never in a build): tells the Boxity SDK - and
- * src/bloxity/env.js - which environment to use, by injecting `window.BLOXITY_ENV`
- * ahead of every other script (so ahead of the SDK tag). Without it the SDK, seeing
- * localhost, would point its API and login at the Vite server.
+ * `vite dev` only (`apply: 'serve'`, never in a build): when asked (devEnvironment), tells
+ * the Boxity SDK - and src/bloxity/env.js - which environment to use, by injecting
+ * `window.BLOXITY_ENV` ahead of every other script (so ahead of the SDK tag).
  *
  * Production builds get nothing: the page Boxity hosts the game in provides it.
  */
@@ -48,10 +52,12 @@ function bloxityDevEnv() {
     name: 'bloxity-dev-env',
     apply: 'serve',
     transformIndexHtml() {
+      const env = devEnvironment()
+      if (!env) return []
       return [
         {
           tag: 'script',
-          children: `window.BLOXITY_ENV = ${JSON.stringify(devEnvironment())};`,
+          children: `window.BLOXITY_ENV = ${JSON.stringify(env)};`,
           injectTo: 'head-prepend',
         },
       ]

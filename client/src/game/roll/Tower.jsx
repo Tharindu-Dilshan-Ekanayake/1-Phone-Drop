@@ -523,8 +523,6 @@ export default function Tower() {
   const interiorRef = useRef(null)
   /** What the interior was last filled for, so it's only refilled when something changed. */
   const filled = useRef('')
-  /** Cracks the last fill placed; one more grows under the phone while a slab holds. */
-  const crackBase = useRef(0)
   /** Rooms whose furniture has been smashed this drop, and the drop it was for. */
   const smashedRef = useRef({ startedAt: -1, smashed: 0, roof: false, landed: false })
 
@@ -599,7 +597,6 @@ export default function Tower() {
       if (filled.current !== '') {
         interiorMesh.count = 0
         crackMesh.count = 0
-        crackBase.current = 0
         filled.current = ''
       }
       if (glassMesh) glassMesh.visible = true
@@ -669,20 +666,6 @@ export default function Tower() {
       }
       crackMesh.count = c
       crackMesh.instanceMatrix.needsUpdate = true
-      crackBase.current = c
-    }
-
-    // The glass, or a slab, holding under the phone for a beat: its crack spreading out.
-    const base = crackBase.current
-    if (roll.cracking > -2 && base < CRACKS) {
-      const grow = 1 - (1 - roll.crackT) * (1 - roll.crackT)
-      const size = HOLE_CRACK * (0.3 + 0.7 * grow)
-      _p.set(HOTEL.x, roll.cracking < 0 ? ROOF_Y + 0.08 : floorY(roll.cracking) + 0.04, HOTEL.z)
-      crackMesh.setMatrixAt(base, _m.compose(_p, _flat, _s.set(size, size, 1)))
-      crackMesh.count = base + 1
-      crackMesh.instanceMatrix.needsUpdate = true
-    } else if (crackMesh.count > base) {
-      crackMesh.count = base
     }
 
     // Furniture still bursting apart: its pieces flying out to where they land.

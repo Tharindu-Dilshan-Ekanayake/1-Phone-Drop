@@ -723,20 +723,6 @@ export const sfx = {
     noise({ at: 0.1, duration: 0.35, volume: 0.12 * p, from: 3000, to: 700, q: 1.6 })
     tone(220, { type: 'square', at: 0.05, duration: 0.1, volume: 0.06, slideTo: 90 })
   },
-  /**
-   * The phone slamming onto something that holds for a moment - the glass roof (`glass`)
-   * or a floor - and starts to crack: a heavy thud, then a creaking crackle.
-   */
-  slamCrack(glass = false) {
-    if (!ready('slamCrack', 120)) return
-    tone(glass ? 140 : 75, { duration: 0.22, volume: 0.24, slideTo: glass ? 70 : 38 })
-    noise({ duration: 0.07, volume: 0.22, from: glass ? 5200 : 1800, to: glass ? 2400 : 600, q: 0.8 })
-    if (lite()) return
-    // The crack spreading: dry ticks speeding up.
-    for (let i = 0; i < 7; i += 1) {
-      noise({ at: 0.08 + i * (0.07 - i * 0.006), duration: 0.02, volume: 0.05 + i * 0.01, from: glass ? 6500 : 3200, to: glass ? 4200 : 1600, q: 2 })
-    }
-  },
   /** A hop as the phone settles (`n` 1, 2, 3...): a plasticky clack, softer each time. */
   phoneBounce(n = 1) {
     const v = 1 / (1 + (n - 1) * 0.9)
