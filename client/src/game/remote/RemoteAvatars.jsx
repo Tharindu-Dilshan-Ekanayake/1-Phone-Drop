@@ -1,40 +1,43 @@
 import { useFrame, useThree } from '@react-three/fiber'
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Vector3 } from 'three'
 
-import { LAUNCH_STAND, PAD_YAW, padAt, padBarHeight } from '@shared/world'
+import { PAD_YAW, padAt } from '@shared/world'
 
 import { remotePlayers } from '../../net/remotePlayers'
 import { getQuality } from '../../store/quality'
 import { emoteFromAnim } from '../../bloxity/emotes'
+import { asToyInstance } from '../blocks'
+import { handPhoneGeometry } from '../handPhone'
 import { RUN_CADENCE } from '../kick'
-import { BODY, GRIP } from '../playerPose'
+import { releasedBetween, releasePoint, repFraction, spawnThrow, THROW_RELEASE, THROW_TARGET_X, throwTargetZ } from '../practice'
+import { sharedMaterials } from '../materials'
 import { BloxityAvatar } from '../PlayerAvatar'
-import { levelCap } from '@shared/balance'
-
-import { armGrowth } from '../armStyles'
-import { flierTurn, maxPullFor } from '../roll/path'
 
 /** How often the set of fully drawn players is reconsidered. */
 const PICK_MS = 500
 /** Top walking speed: full stride amplitude, as for your own character. */
 const MAX_SPEED = 10.875
 const _up = new Vector3(0, 1, 0)
-const _hip = new Vector3()
+const _hand = new Vector3()
 
 /**
- * One other player as their real Bloxity avatar, dressed as they are - arms painted as
- * the arms they've equipped - and posed by the same playerPose as yours, from what the
- * network says they're doing: walking pace, pull-ups on a bar, jumping, stretching back
- * on the launch posts. Their launches fly the avatar itself down the runway, replayed
- * from the same numbers as yours (RemotePlayers works the flight out: `r.flight`).
+ * One other player as their real Bloxity avatar, dressed as they are and holding their
+ * phone, posed by the same playerPose as yours from what the network says they're doing:
+ * walking pace, practising on a throw pad, jumping, winding up a throw at the edge. Their
+ * drops play the throw (RemotePlayers works it out: `r.throwT`); the phone itself falls
+ * on their own screen.
  */
 function RemoteAvatar({ sessionId, look }) {
   const groupRef = useRef(null)
   const innerRef = useRef(null)
   const lastY = useRef(null)
-  const motionRef = useRef({ time: 0, speed: 0, grounded: true, maxSpeed: MAX_SPEED, vy: 0, stride: 0, grip: -1 })
-  const armsId = useCallback(() => remotePlayers.get(sessionId)?.tireId || 'bicycle', [sessionId])
+  const handRef = useRef(null)
+  const phoneRef = useRef(null)
+  const motionRef = useRef({ time: 0, speed: 0, grounded: true, maxSpeed: MAX_SPEED, vy: 0, stride: 0, windup: 0, throwT: 0 })
+  /** Their phone in their hand: one mesh, its geometry swapped when they change phone. */
+  const phone = useMemo(() => asToyInstance(handPhoneGeometry('bicycle'), sharedMaterials().toy), [])
+  useEffect(() => () => phone.dispose(), [phone])
 
   useFrame((_state, rawDelta) => {
     const group = groupRef.current
@@ -45,56 +48,32 @@ function RemoteAvatar({ sessionId, look }) {
     const m = motionRef.current
     m.time += delta
     group.visible = true
-    m.grip = -1
-    m.strain = 0
-    m.pitch = 0
-    m.fly = 0
-    m.sprawl = 0
-    m.cheer = 0
     m.run = 0
     m.emote = null
-    m.grow = armGrowth(r.tireId, r.level, levelCap(r.rebirths || 0))
-
-    if (r.flying) {
-      // Their launch: slung past the posts and flying down the runway, diving about their
-      // middle - the group under it, the avatar turned about it.
-      const st = r.flight
-      group.position.set(st.position.x, st.position.y - BODY.pivot, st.position.z)
-      group.quaternion.identity()
-      flierTurn(st, inner.quaternion)
-      _hip.set(0, BODY.pivot, 0).applyQuaternion(inner.quaternion)
-      inner.position.set(-_hip.x, BODY.pivot - _hip.y, -_hip.z)
-      m.grip = st.grip
-      m.strain = st.strain
-      m.pitch = st.pitch
-      m.fly = st.fly
-      m.sprawl = st.sprawl
-      m.cheer = st.cheer
-      m.reach = 1.5
-      m.speed = 0
-      m.grounded = true
-      return
-    }
+    m.windup = 0
+    m.wobble = 0
+    m.throwT = 0
+    const geometry = handPhoneGeometry(r.tireId || 'bicycle')
+    const held = phoneRef.current
+    if (held && held.geometry !== geometry) held.geometry = geometry
+    if (handRef.current) handRef.current.visible = !(r.flying && r.throwT >= 1)
 
     inner.position.set(0, 0, 0)
     inner.quaternion.identity()
     group.position.copy(r.position)
     const running = r.anim === 'run'
-    if (r.pulling) {
-      // Stretching back on the posts: they're where they've walked back to, facing down
-      // the runway, arms reaching to the grips.
-      const back = Math.max(0, r.position.z - LAUNCH_STAND.z)
+    if (r.flying || r.pulling) {
+      // At the edge, facing out over it: winding up, or throwing.
       group.quaternion.setFromAxisAngle(_up, Math.PI)
-      m.grip = GRIP.ahead + back
-      m.strain = Math.min(1, back / maxPullFor(r.tireId, r.level, levelCap(r.rebirths || 0)))
+      m.windup = r.pulling ? 0.85 : 0
+      m.throwT = r.flying ? r.throwT : 0
       m.speed = 0
       m.grounded = true
       return
     }
     group.quaternion.setFromAxisAngle(_up, running ? PAD_YAW : r.yaw)
-    // Under a bar: rubber-arm pull-ups, as yours does.
+    // On a throw pad: practising, as you do - their phones fly down the lane too.
     m.run = running ? 1 : 0
-    m.barY = running ? padBarHeight(padAt(r.position.x, r.position.z, 1)) : undefined
 
     const speed = running ? 0 : r.speed
     m.speed = speed
@@ -106,13 +85,25 @@ function RemoteAvatar({ sessionId, look }) {
     const y = r.position.y
     if (lastY.current !== null) m.vy += ((y - lastY.current) / Math.max(delta, 1e-3) - m.vy) * 0.3
     lastY.current = y
+    const rep = repFraction(m.stride)
     m.stride += delta * (running ? RUN_CADENCE : 5 + 6 * Math.min(1, speed / MAX_SPEED))
+    if (running) {
+      const pad = padAt(r.position.x, r.position.z, 1)
+      if (pad >= 0 && releasedBetween(rep, repFraction(m.stride))) {
+        releasePoint(r.position, _hand)
+        spawnThrow(_hand.x, _hand.y, _hand.z, THROW_TARGET_X, throwTargetZ(pad), r.tireId || 'bicycle')
+      }
+      if (handRef.current && repFraction(m.stride) >= THROW_RELEASE) handRef.current.visible = false
+    }
   })
 
   return (
     <group ref={groupRef}>
       <group ref={innerRef}>
-        <BloxityAvatar equipped={look?.equipped} proportions={look?.proportions} motionRef={motionRef} armsId={armsId} targetHeight={1.8} />
+        <BloxityAvatar equipped={look?.equipped} proportions={look?.proportions} motionRef={motionRef} handRef={handRef} targetHeight={1.8} />
+        <group ref={handRef}>
+          <primitive ref={phoneRef} object={phone} />
+        </group>
       </group>
     </group>
   )
@@ -137,7 +128,7 @@ export function RemoteAvatars() {
       const near = []
       for (const r of remotePlayers.values()) {
         r.fullAvatar = false
-        const d = camera.position.distanceTo(r.flying ? r.flight.position : r.position)
+        const d = camera.position.distanceTo(r.position)
         if (d < settings.remoteAvatarDistance) near.push([d, r])
       }
       near.sort((a, b) => a[0] - b[0])

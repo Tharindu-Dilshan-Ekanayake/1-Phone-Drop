@@ -1,6 +1,5 @@
 import { Vector3 } from 'three'
 
-import { createRideState } from '../game/roll/path'
 import { runtime } from '../game/runtime'
 import { getGame } from '../store/game'
 
@@ -45,8 +44,8 @@ export function upsertRemotePlayer(sessionId, state) {
       /** Follow state per equipped pet, grown as needed and reused. */
       pets: [],
       walkPhase: 0,
-      /** Their launch replayed down the runway (RemotePlayers fills it in while `flying`). */
-      flight: createRideState(),
+      /** Their drop: `flying` while it plays, `throwT` (0-1) through their throw (RemotePlayers fills them in). */
+      throwT: 0,
       flying: false,
       pulling: false,
     }

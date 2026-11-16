@@ -3,6 +3,7 @@ import { test } from 'node:test'
 
 import {
   AD_REWARDS,
+  DROP_ROOF,
   EGGS,
   GEM_PRODUCTS,
   healthForLevel,
@@ -44,7 +45,7 @@ import {
   usePortal,
 } from '../../shared/logic.js'
 import { PlayerSession } from '../../shared/session.js'
-import { LAUNCH_STAND, MAX_PULL, maxPullFor, PAD_X, padCenterZ, PORTALS, ROLL_ZONE, SPAWN, STAR } from '../../shared/world.js'
+import { DROP_SPOT, PAD_X, padCenterZ, PORTALS, ROLL_ZONE, SPAWN, STAR } from '../../shared/world.js'
 
 const onPad = (i) => ({ x: PAD_X, y: 0.5, z: padCenterZ(i) })
 const inRollZone = () => ({ x: 0, y: 0, z: (ROLL_ZONE.minZ + ROLL_ZONE.maxZ) / 2 })
@@ -149,15 +150,23 @@ test('skipping to a rebirth costs Wins', () => {
   assert.equal(p.health, 0)
 })
 
-// --- Rolling ---------------------------------------------------------------------
+// --- Dropping --------------------------------------------------------------------
 
-test('nothing blocks a kick: it always flies its full reach', () => {
+test('nothing blocks a drop: it always smashes its full reach', () => {
   for (const health of [0, ZONES[1].wall - 1, ZONES[1].wall, ZONES[20].wall * 3]) {
     const outcome = rollOutcome(health)
     assert.equal(outcome.blocked, -1)
     assert.equal(outcome.distance, rollReach(health))
   }
-  assert.equal(rollOutcome(ZONES[1].wall - 1).broken, 1, 'past the first stage without its pace Power')
+  assert.equal(rollOutcome(ZONES[1].wall - 1).broken, 1, 'past the first floor without its pace Skill')
+})
+
+test('every drop falls to the glass roof and smashes into the first floor', () => {
+  assert.equal(ZONES[0].start, DROP_ROOF)
+  // Even the weakest throw with no Skill gets through the roof.
+  const p = createProfile('a', 'A')
+  const weakest = applyRoll(p, 0, 0)
+  assert.ok(weakest.distance > DROP_ROOF, `got ${weakest.distance}`)
 })
 
 test('Wins grow with distance', () => {
@@ -186,7 +195,7 @@ test('rolls pay Wins without using Health; a zone prize pays only once', () => {
   assert.equal(p.stats.rolls, 2)
 })
 
-test('the timing meter decides how hard you hit: distance and Wins', () => {
+test('the throw meter decides how deep it smashes: depth and Wins', () => {
   const kick = (accuracy) => {
     const p = createProfile('a', 'A')
     p.health = ZONES[3].wall
@@ -203,9 +212,11 @@ test('the timing meter decides how hard you hit: distance and Wins', () => {
   // Further the closer to the middle; Auto Kick flies Power's distance exactly.
   assert.equal(auto.distance, Math.round(rollReach(ZONES[3].wall) * 10) / 10)
   assert.ok(weak.distance < good.distance && good.distance < great.distance && great.distance < perfect.distance)
-  // Every grade clearly apart from the next: at least a fifth further each step up.
-  assert.ok(good.distance > weak.distance * 1.2 && great.distance > good.distance * 1.2 && perfect.distance > great.distance * 1.15)
-  assert.ok(perfect.distance > auto.distance * 1.35 && weak.distance < auto.distance * 0.65)
+  // Every grade clearly apart from the next: at least a fifth deeper under the roof each
+  // step up (the fall to the roof is the same for every throw).
+  const below = (r) => r.distance - DROP_ROOF
+  assert.ok(below(good) > below(weak) * 1.2 && below(great) > below(good) * 1.2 && below(perfect) > below(great) * 1.15)
+  assert.ok(below(perfect) > below(auto) * 1.35 && below(weak) < below(auto) * 0.65)
   // Wins: the Power's worth times the grade's bonus, whatever extra yards the grade adds.
   assert.equal(good.wins, auto.wins)
   assert.ok(weak.wins < auto.wins && great.wins > auto.wins)
@@ -347,7 +358,7 @@ test('the first guide step completes on the pad once Health reaches 30', () => {
   assert.equal(profile.tutorialStep, 1)
 })
 
-test('rolls start only from the roll zone, one at a time', () => {
+test('drops start only from the drop zone, one at a time', () => {
   const pos = { x: SPAWN.x, y: 0, z: SPAWN.z }
   const { session, profile, count } = makeSession(pos)
   session.handle('roll', {}, 1000)
@@ -531,30 +542,20 @@ test("Palm Beach's Secret Star: found once, there only, for x2 Power everywhere"
   assert.equal(far.count('star'), 0)
 })
 
-// --- The stretch lane ------------------------------------------------------------
+// --- The drop zone ---------------------------------------------------------------
 
-test('walking further back down the stretch lane flings you further and pays more, up to your arms reach', () => {
-  const launchFrom = (back, tire) => {
+test('throwing from the edge pays the same as anywhere in the drop zone: no stretch bonus', () => {
+  const dropFrom = (pos) => {
     const profile = createProfile('a', 'A')
     profile.health = 5000
-    if (tire) {
-      profile.ownedTires.push(tire)
-      profile.equippedTire = tire
-    }
-    const { session, events } = makeSession({ x: LAUNCH_STAND.x, y: 0, z: LAUNCH_STAND.z + back }, profile)
+    const { session, events } = makeSession(pos, profile)
     session.handle('roll', { accuracy: 0.5 }, 1000)
-    return events.find((e) => e.type === 'roll').payload
+    return events.find((e) => e.type === 'roll')?.payload
   }
-  const stood = launchFrom(0)
-  const short = launchFrom(3)
-  assert.equal(stood.stretch, 0)
-  assert.ok(short.distance > stood.distance && short.wins >= stood.wins)
-  // Starter arms only reach a few metres: walking the whole lane counts no further.
-  const cheat = launchFrom(MAX_PULL)
-  assert.ok(cheat.stretch <= maxPullFor('bicycle', 1, 15) + 0.6) // (+0.5 lag slack, rounded)
-  // The best arms reach (nearly) the whole 40 m - and fly much further for it.
-  const best = TIRES[TIRES.length - 1].id
-  const far = launchFrom(MAX_PULL, best)
-  assert.ok(far.stretch > cheat.stretch * 3)
-  assert.ok(far.distance > stood.distance * 1.3)
+  const edge = dropFrom({ x: DROP_SPOT.x, y: 0, z: DROP_SPOT.z })
+  const back = dropFrom(inRollZone())
+  assert.ok(edge && back)
+  assert.equal(edge.distance, back.distance)
+  assert.equal(edge.wins, back.wins)
+  assert.equal(edge.stretch, undefined)
 })

@@ -44,11 +44,11 @@ export const useGame = create((set, get) => ({
   /** Extra data for the open panel (e.g. which egg the hatch panel is for). */
   panelData: null,
 
-  /** A roll in progress: { distance, wins, prize, blocked, duration, best }. */
+  /** A drop in progress: { distance, wins, prize, blocked, duration, best, prevBest, floor }. */
   roll: null,
-  /** Wins earned by the current roll, held back from the HUD until the tire stops. */
+  /** Wins earned by the current drop, held back from the HUD until the phone stops. */
   pendingWins: 0,
-  /** "+N Wins!" result once the tire has stopped. */
+  /** "+N Wins!" result once the phone has stopped. */
   rollResult: null,
   /** A short celebration banner: { text, id } (new zone, ad reward, Gems purchase). */
   toast: null,
@@ -83,7 +83,7 @@ export const useGame = create((set, get) => ({
       roll: null,
       pendingWins: 0,
       rollResult: roll
-        ? { wins: roll.wins, prize: roll.prize, distance: roll.distance, blocked: roll.blocked, best: roll.best, id: Date.now() }
+        ? { wins: roll.wins, prize: roll.prize, distance: roll.distance, blocked: roll.blocked, best: roll.best, prevBest: roll.prevBest, floor: roll.floor, id: Date.now() }
         : null,
     })
   },

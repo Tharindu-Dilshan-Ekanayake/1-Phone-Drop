@@ -4,6 +4,7 @@ import {
   DAILY_INTERVAL_MS,
   dayNumber,
   DAILY_REWARDS,
+  DROP_ROOF,
   EGGS,
   FREE_REWARD,
   GEM_PRODUCTS,
@@ -32,8 +33,6 @@ import {
   rollDuration,
   SHOP,
   streakMultiplier,
-  STRETCH_REACH,
-  STRETCH_WINS,
   TIRES,
   TRAIN_INTERVAL,
   TROPHY_FIRST,
@@ -172,7 +171,7 @@ export const tireById = (id) => TIRES.find((t) => t.id === id) || TIRES[0]
 export function isPadUnlocked(profile, index) {
   const pad = PADS[index]
   if (!pad) return false
-  // A world's own treadmill runs in that world only.
+  // A world's own throw pad works in that world only.
   if (pad.world !== undefined && (profile.world || 0) !== pad.world) return false
   if (pad.product) return Boolean(profile.passes[pad.product])
   return profile.rebirths >= pad.rebirths
@@ -348,12 +347,14 @@ export function zoneIndexAt(meter) {
 }
 
 /**
- * Where a kick with `health` (Power) lands: its full reach - nothing on the field stops
- * it. `broken` is how many stages it flew into past the first (the name stayed from the
- * template's walls); `blocked` is always -1.
+ * How deep a drop with `health` (Skill) smashes: its full reach. `broken` is how many
+ * floors it smashed into past the first (the name stayed from the template's walls);
+ * `blocked` is always -1.
  */
 export function rollOutcome(health, reachFactor = 1) {
-  const reach = rollReach(health) * reachFactor
+  // The throw scales the depth under the glass roof, never the fall above it: every drop
+  // still reaches the roof and smashes into the hotel.
+  const reach = DROP_ROOF + (rollReach(health) - DROP_ROOF) * reachFactor
   let broken = 0
   for (let i = 1; i < ZONES.length && ZONES[i].start <= reach; i += 1) broken += 1
   return { distance: reach, blocked: -1, broken, reach }
@@ -402,14 +403,12 @@ export const rollWinsAt = (health, world = 0) => baseRollWins(rollOutcome(health
  * would multiply a PERFECT kick's Wins dozens of times over late in the game. Without
  * the meter (Auto Kick) the kick is a plain x1 kick.
  */
-export function applyRoll(profile, now, accuracy = null, bonus = 1, stretch = 0) {
-  // `stretch` (0-1): how much of the 40 m stretch lane you'd walked back - further and richer.
-  const pulled = Math.min(1, Math.max(0, Number(stretch) || 0))
-  const outcome = rollOutcome(profile.health, hitReach(accuracy) * (1 + STRETCH_REACH * pulled))
+export function applyRoll(profile, now, accuracy = null, bonus = 1) {
+  const outcome = rollOutcome(profile.health, hitReach(accuracy))
   const distance = Math.round(outcome.distance * 10) / 10
   const grade = hitGrade(accuracy)
   // `bonus`: the session's own multipliers (a PERFECT combo, friends in the server).
-  const multiplier = winsMultiplier(profile, now) * (grade ? grade.bonus : 1) * Math.max(1, Number(bonus) || 1) * (1 + STRETCH_WINS * pulled)
+  const multiplier = winsMultiplier(profile, now) * (grade ? grade.bonus : 1) * Math.max(1, Number(bonus) || 1)
   const world = profile.world
   const worth = Math.round(rollReach(profile.health) * 10) / 10
   const wins = Math.max(1, Math.round(baseRollWins(worth, world) * multiplier))

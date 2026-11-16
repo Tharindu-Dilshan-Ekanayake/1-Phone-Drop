@@ -5,40 +5,53 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 
-import { PROD_ENV } from './src/bloxity/env.js'
-
-/** A local Boxity stack: the API, the play (matchmaker) service and the portal. */
+/**
+ * A local Boxity stack: the API, the play (matchmaker) service and the portal. Static
+ * files come from the local API too.
+ */
 const LOCAL_BLOXITY_ENV = {
   env: 'local',
   apiUrl: 'http://localhost:4000',
   playUrl: 'http://localhost:2567',
   portalUrl: 'http://localhost:3000',
-  staticUrl: PROD_ENV.staticUrl,
+  staticUrl: 'http://localhost:4000',
+}
+
+/**
+ * The environment to hand the page in `vite dev`: a local Boxity stack by default, or
+ * any other one given whole as JSON in the shell (never in a file), e.g.
+ *   BLOXITY_DEV_ENV='{"env":"stage","apiUrl":"...","playUrl":"...","portalUrl":"...","staticUrl":"..."}' npm run dev
+ */
+function devEnvironment() {
+  const raw = process.env.BLOXITY_DEV_ENV
+  if (!raw) return LOCAL_BLOXITY_ENV
+  try {
+    const env = JSON.parse(raw)
+    if (env && typeof env === 'object' && env.env && env.apiUrl && env.playUrl && env.portalUrl && env.staticUrl) return env
+  } catch {
+    // Falls through to the warning.
+  }
+  console.warn('[bloxity] BLOXITY_DEV_ENV must be a whole environment as JSON; using the local stack')
+  return LOCAL_BLOXITY_ENV
 }
 
 /**
  * `vite dev` only (`apply: 'serve'`, never in a build): tells the Boxity SDK - and
  * src/bloxity/env.js - which environment to use, by injecting `window.BLOXITY_ENV`
- * ahead of every other script (so ahead of the SDK tag).
+ * ahead of every other script (so ahead of the SDK tag). Without it the SDK, seeing
+ * localhost, would point its API and login at the Vite server.
  *
- * Defaults to a local Boxity stack. `BLOXITY_DEV_ENV=prod npm run dev` develops
- * against production instead: then the production environment is injected explicitly,
- * because with no BLOXITY_ENV at all the SDK, seeing localhost, would repoint its API
- * and login at the Vite server and login could never succeed.
- *
- * Production builds get nothing: the page Boxity hosts the game in provides it, or the
- * SDK uses production.
+ * Production builds get nothing: the page Boxity hosts the game in provides it.
  */
 function bloxityDevEnv() {
   return {
     name: 'bloxity-dev-env',
     apply: 'serve',
     transformIndexHtml() {
-      const env = process.env.BLOXITY_DEV_ENV === 'prod' ? PROD_ENV : LOCAL_BLOXITY_ENV
       return [
         {
           tag: 'script',
-          children: `window.BLOXITY_ENV = ${JSON.stringify(env)};`,
+          children: `window.BLOXITY_ENV = ${JSON.stringify(devEnvironment())};`,
           injectTo: 'head-prepend',
         },
       ]

@@ -5,8 +5,9 @@ import { STYLE } from '../materials'
 import { SCOREBOARD } from './terrain'
 
 /**
- * The canyon walls round the lobby: blocky candy mesas (STYLE.MESA) - pastel rock in wavy
- * strata under a dripping frosting cap - one box per column on a 4 m grid, stepping up in
+ * The walls round the lobby, in the venue's style (`hills.style`): glass towers with lit
+ * windows round Sky City, green-capped sandstone cliffs at Palm Beach (candy mesas, the
+ * template's, if a venue names none) - one box per column on a 4 m grid, stepping up in
  * terraces the further they stand from the plaza: low ledges just past its edge, cliffs
  * 36 m high further out, each terrace a colour further along the venue's rock ramp
  * (peach, coral, pink, lilac, periwinkle in the Candy Canyon; sandstone at Palm Beach).
@@ -27,6 +28,8 @@ const VALLEY_HALF = CANYON_HALF_WIDTH + 6
 const REACH = { x: 96, south: PLAZA.maxZ + 112, north: -104 }
 
 const CANDY = ['#ff5fa8', '#ffd21f', '#4be0c0', '#b05cff', '#ff8a3a', '#5fb8ff']
+/** Rooftop clutter on the towers round Sky City. */
+const ROOF = { steel: '#c9d2de', dark: '#3a3f4a', tank: '#c98f52', lawn: '#5fdc4a', leaves: ['#3fbf5a', '#7fe03a'], light: '#ff3b3b' }
 const PALM = { trunk: '#b4884f', leaves: ['#3fbf5a', '#54d36a'] }
 
 /** Metres from (x, z) to the nearest open ground (the plaza, or the runway's valley). */
@@ -47,6 +50,33 @@ const underScoreboard = (x, z) =>
  * disc striped white, turned to face a random way), a stack of gumdrops, or a palm.
  */
 function addDecor(blocks, x, top, z, k, kind) {
+  if (kind === 'roof') {
+    const pick = hash2(k, 31)
+    if (pick < 0.3) {
+      // A radio mast with a blinking red light on top.
+      const h = 5 + hash2(k, 32) * 4
+      blocks.addOn(x, top, z, 0.9, 0.4, 0.9, ROOF.dark, STYLE.SMOOTH)
+      blocks.addOn(x, top + 0.4, z, 0.25, h, 0.25, ROOF.steel, STYLE.STRIPES)
+      blocks.add(x, top + h + 0.6, z, 0.5, 0.5, 0.5, ROOF.light, STYLE.GLOW)
+    } else if (pick < 0.55) {
+      // Air conditioners, side by side.
+      for (const dx of [-0.8, 0.8]) {
+        blocks.addOn(x + dx, top, z, 1.4, 1.1, 1.4, ROOF.steel, STYLE.PLATE)
+        blocks.addOn(x + dx, top + 1.1, z, 0.9, 0.08, 0.9, ROOF.dark, STYLE.SMOOTH)
+      }
+    } else if (pick < 0.75) {
+      // A wooden water tank on legs.
+      for (const [dx, dz] of [[-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7]]) blocks.addOn(x + dx, top, z + dz, 0.2, 1.2, 0.2, ROOF.dark, STYLE.SMOOTH)
+      blocks.addOn(x, top + 1.2, z, 2, 2.2, 2, ROOF.tank, STYLE.STRIPES)
+      blocks.addOn(x, top + 3.4, z, 2.2, 0.3, 2.2, ROOF.dark, STYLE.SMOOTH)
+    } else {
+      // A little roof garden: a lawn and a tree.
+      blocks.addOn(x, top, z, 3, 0.4, 3, ROOF.lawn, STYLE.STUDS)
+      blocks.addOn(x, top + 0.4, z, 0.4, 1.6, 0.4, '#8a5a32', STYLE.SMOOTH)
+      blocks.addOn(x, top + 2, z, 2, 1.6, 2, ROOF.leaves[Math.floor(hash2(k, 35) * 2)], STYLE.STUDS)
+    }
+    return
+  }
   if (kind === 'palm') {
     const h = 4 + hash2(k, 32) * 2.5
     blocks.addOn(x, top, z, 0.7, h, 0.7, PALM.trunk, STYLE.STRIPES)
@@ -89,8 +119,13 @@ export function buildHills(blocks, { density = 1, venue } = {}) {
       const step = Math.min(9, 1 + Math.floor(d / 9 + n * 1.3))
       let h = 4 * step
       if (underScoreboard(x, z)) h = Math.min(h, 20)
-      const rock = look.rock[Math.min(look.rock.length - 1, Math.floor((step - 1) / 2))]
-      blocks.addOn(x, 0, z, cell, h, cell, rock, STYLE.MESA)
+      // Towers come in building-sized blocks of one colour and height; mesas and cliffs
+      // take their colour from the terrace they stand on.
+      const lot = hash2(Math.floor(gx / 12) + 31, Math.floor(gz / 12) + 17)
+      if (look.mixed) h = Math.min(36, h + 4 * Math.floor(lot * 3))
+      if (underScoreboard(x, z)) h = Math.min(h, 20)
+      const rock = look.mixed ? look.rock[Math.floor(lot * look.rock.length) % look.rock.length] : look.rock[Math.min(look.rock.length - 1, Math.floor((step - 1) / 2))]
+      blocks.addOn(x, 0, z, cell, h, cell, rock, look.style ?? STYLE.MESA)
       columns += 1
       // Decor now and then on a terrace near enough to be seen.
       if (d < 70 && hash2(k, 30) < decorChance * (cell / 4) ** 2) {

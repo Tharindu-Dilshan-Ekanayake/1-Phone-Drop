@@ -5,7 +5,6 @@ import { Vector3 } from 'three'
 import { getBloxityState } from '../bloxity/store'
 import { launch } from './launch'
 import { placeLocalBubble } from './remote/nameplates'
-import { PULL_DIST } from './roll/path'
 import { runtime } from './runtime'
 
 /** How high above the player's feet the camera aims. */
@@ -133,17 +132,16 @@ export function FollowCamera() {
     }
     const delta = Math.min(rawDelta, 0.05)
     const p = runtime.player.position
-    // Holding the launch posts: swing round to three-quarters on, back and a little lower,
-    // so the stretching arms and the posts stay in view (and clear of the LAUNCH button
-    // below), more the further back you've walked.
-    const want = launch.gripping || launch.released ? 0.35 + 0.65 * Math.min(1, launch.back / PULL_DIST) : 0
-    stretchView += (want - stretchView) * (1 - Math.exp(-6 * delta))
-    _target.set(p.x, p.y + LOOK_HEIGHT - 1.3 * stretchView, p.z)
+    // Winding up a throw at the edge: over your shoulder, looking out and down past the
+    // edge at the hotel far below - where it's going.
+    const want = launch.gripping || launch.released ? 1 : 0
+    stretchView += (want - stretchView) * (1 - Math.exp(-5 * delta))
+    _target.set(p.x, p.y + LOOK_HEIGHT - 3.5 * stretchView, p.z - 7 * stretchView)
 
     // Spherical -> cartesian. yaw 0 puts the camera south of the player, looking north.
-    const yaw = runtime.camera.yaw + 0.75 * stretchView
-    const pitch = runtime.camera.pitch + 0.16 * stretchView
-    const distance = runtime.camera.distance + 1.5 * stretchView
+    const yaw = runtime.camera.yaw * (1 - stretchView) + 0.28 * stretchView
+    const pitch = runtime.camera.pitch + 0.2 * stretchView
+    const distance = runtime.camera.distance - 2 * stretchView
     const horizontal = Math.cos(pitch) * distance
     _desired.set(
       _target.x + Math.sin(yaw) * horizontal,

@@ -1,10 +1,8 @@
 import { reportedAnim } from '../bloxity/emotes'
 import { environment } from '../bloxity/env'
-import { GAME_SLUG, joinToken } from '../bloxity/identity'
+import { GAME_SLUG, joinToken, rememberSaveTicket, saveTickets } from '../bloxity/identity'
 import { getSDK, safeCall, waitForSDK } from '../bloxity/sdk'
-import { LAUNCH_STAND } from '@shared/world'
 
-import { meterAtZ } from '../game/roll/path'
 import { runtime } from '../game/runtime'
 import { getGame } from '../store/game'
 import { setTransport } from './actions'
@@ -60,11 +58,11 @@ function serverTarget() {
 const DEV_PORTS = [2567, 3000]
 async function findDevServer() {
   const env = environment()
-  const candidates = env.env === 'local' ? [env.playUrl] : []
+  const candidates = env?.env === 'local' ? [env.playUrl] : []
   for (const port of DEV_PORTS) candidates.push(`${window.location.protocol}//${window.location.hostname}:${port}`)
   for (const url of new Set(candidates)) {
     const health = await healthOf(url)
-    if (health?.ok && health.game === '1-arm-length') return url
+    if (health?.ok && health.game === 'phone-plunge') return url
   }
   return null
 }
@@ -104,7 +102,7 @@ function sdkGame(method, ...args) {
  * the server verifies it. `token` is null for guests.
  */
 function joinOptions(identity) {
-  return { playerId: identity.id, name: identity.name, token: joinToken(), gameSlug: GAME_SLUG }
+  return { playerId: identity.id, name: identity.name, token: joinToken(), gameSlug: GAME_SLUG, tickets: saveTickets() }
 }
 
 /** The server's /api/health answer, or null if it can't be reached. */
@@ -138,8 +136,9 @@ function join(client, options, lobby) {
  */
 function rejoinEndpoint(endpoint) {
   const match = /\/v1\/ws\/([^/?#]+)/.exec(endpoint || '')
-  if (!match) return endpoint
-  return `${environment().playUrl.replace(/^http/i, 'ws')}/v1/ws/${match[1]}`
+  const play = environment()?.playUrl
+  if (!match || !play) return endpoint
+  return `${play.replace(/^http/i, 'ws')}/v1/ws/${match[1]}`
 }
 
 /** `new Client(endpoint).joinById(roomId, options)`, or null if that fails. */
@@ -158,8 +157,10 @@ async function tryJoinById(Client, endpoint, roomId, options) {
  * (`{playUrl}/v1/dir/<hostingId>/list`), or null if it's gone or full.
  */
 async function findListedRoom(hostingId, roomId) {
+  const play = environment()?.playUrl
+  if (!play) return null
   try {
-    const res = await fetch(`${environment().playUrl}/v1/dir/${encodeURIComponent(hostingId)}/list`, {
+    const res = await fetch(`${play}/v1/dir/${encodeURIComponent(hostingId)}/list`, {
       signal: AbortSignal.timeout(5000),
     })
     if (!res.ok) return null
@@ -225,22 +226,18 @@ function attachRoom(room, identity, Callbacks, endpoint, gen) {
       case 'stock':
         getGame().setSphinxStock(payload.sphinx)
         break
+      case 'saveTicket':
+        rememberSaveTicket(payload)
+        break
       case 'leaderboards':
         getGame().setLeaderboards(payload)
         break
       case 'ghostRoll':
-        // Never your own launch (you're flying already), and only launches down your
-        // world's runway. Their avatar replays it (remote/): from the launch posts, as far
-        // back as they'd walked.
+        // Never your own drop (you're watching it already), and only drops in your world.
+        // Their avatar plays the throw at the edge (remote/).
         if (payload.sid === room.sessionId) break
         if ((payload.world || 0) !== (getGame().profile.world || 0)) break
-        runtime.ghostRolls.set(payload.sid, {
-          ...payload,
-          fromMeter: meterAtZ(LAUNCH_STAND.z),
-          startX: LAUNCH_STAND.x,
-          pull: Math.max(0, payload.z - LAUNCH_STAND.z),
-          startedAt: performance.now(),
-        })
+        runtime.ghostRolls.set(payload.sid, { ...payload, startedAt: performance.now() })
         break
       case 'kicked':
         leaving = true

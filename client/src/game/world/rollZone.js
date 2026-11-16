@@ -1,15 +1,14 @@
 import { CylinderGeometry, SphereGeometry } from 'three'
 
-import { LAUNCH_POSTS, LAUNCH_STAND, MAX_PULL, ROLL_ARCH, ROLL_ZONE, STRETCH_LANE } from '@shared/world'
+import { DROP_SPOT, ROLL_ARCH, ROLL_ZONE } from '@shared/world'
 
 import { STYLE } from '../materials'
-import { GRIP } from '../playerPose'
+import { addPhone } from '../phoneStyles'
 import { venueOf } from '../sceneStyle'
 
-/** The LAUNCH PAD strip: the one gameplay yellow, the same in every world. */
+/** The DROP ZONE strip: the one gameplay yellow, the same in every world. */
 const STRIP = '#ffd21f'
-const WOOD = '#a8693a'
-const RUBBER = '#ff5fa8'
+const RAIL = '#ffffff'
 
 const DISC = new CylinderGeometry(1, 1, 1, 28)
 const BALL = new SphereGeometry(1, 16, 12)
@@ -26,14 +25,13 @@ function addBolt(blocks, x, y, z, flip, color) {
 }
 
 /**
- * The start of the runway: the yellow LAUNCH PAD across its mouth (painted with its name,
- * see signs.js) with navy chevrons pointing down the runway, a glowing pad at each end,
- * and a big yellow-and-navy start arch over it with a STRETCH & FLY sign between lightning
- * bolts, crowned by a giant slingshot - in the venue's colours (turquoise and teal with
- * coral at Palm Beach); the strip itself is the same yellow everywhere. In the middle of
- * the pad stand the two launch posts you grab (LAUNCH_POSTS), a glowing ring on the spot
- * behind them where you hold on, and rainbow chevrons pointing back the way you walk to
- * stretch.
+ * The DROP ZONE at the cliff edge: the yellow strip across the end of the plaza (painted
+ * with its name, see signs.js) with navy chevrons pointing out over the edge, a glowing
+ * pad at each end, a railing along the edge with a gap in the middle where a little
+ * platform juts out over the drop (the spot you throw from, DROP_SPOT), and a big
+ * yellow-and-navy arch over it all with its sign between lightning bolts, crowned by a
+ * giant phone - in the venue's colours (turquoise and teal with coral at Palm Beach); the
+ * strip itself is the same yellow everywhere.
  *
  * Boxes go into the world's block set and the round parts into its props, so the whole
  * thing rides in those two draw calls. `detail` (off on LOW) adds the bulbs.
@@ -66,45 +64,30 @@ export function buildRollZone(blocks, props, { detail = true, world = 0 } = {}) 
     props.add(DISC, { position: [x, 0.15, cz + 0.3], scale: [1.6, 0.06, 2.2], color: STRIP, style: STYLE.GLOW })
   }
 
-  // The launch posts: a chunky wooden post either side of the runway's middle on a navy
-  // foot, banded in gold, topped with a glowing grip at hand height.
+  // The cliff edge: a railing along it with a gap in the middle, and there a little
+  // platform jutting out over the drop with a glowing ring where you stand to throw.
+  const edgeZ = minZ + 0.3
   for (const side of [-1, 1]) {
-    const x = LAUNCH_POSTS.x + side * LAUNCH_POSTS.halfGap
-    const z = LAUNCH_POSTS.z
-    blocks.addOn(x, 0.1, z, 0.8, 0.22, 0.8, c.base, STYLE.SMOOTH)
-    blocks.addOn(x, 0.32, z, 0.36, GRIP.y - 0.5, 0.36, WOOD, STYLE.STUDS)
-    for (const y of [0.6, 1.05]) blocks.addOn(x, y, z, 0.42, 0.08, 0.42, c.crest, STYLE.GLOW)
-    blocks.addOn(x, GRIP.y - 0.18, z, 0.46, 0.2, 0.46, '#ffffff', STYLE.SMOOTH)
-    props.add(BALL, { position: [x, GRIP.y + 0.06, z], scale: [0.26, 0.2, 0.26], color: RUBBER, style: STYLE.GLOW })
+    const from = side * 2.6
+    const to = side * (w / 2 + 3)
+    const mid = (from + to) / 2
+    const len = Math.abs(to - from)
+    blocks.addOn(mid, 0.1, edgeZ, len, 0.12, 0.5, c.base, STYLE.SMOOTH)
+    blocks.addOn(mid, 1.05, edgeZ, len, 0.16, 0.24, RAIL, STYLE.SMOOTH)
+    blocks.addOn(mid, 0.55, edgeZ, len, 0.08, 0.14, RAIL, STYLE.SMOOTH)
+    for (let x = Math.min(from, to); x <= Math.max(from, to) + 0.01; x += 2.2) blocks.addOn(x, 0.1, edgeZ, 0.22, 1.0, 0.22, RAIL, STYLE.SMOOTH)
+    blocks.addOn(from, 0.1, edgeZ, 0.5, 1.6, 0.5, STRIP, STYLE.STRIPES)
+    props.add(BALL, { position: [from, 1.95, edgeZ], scale: [0.4, 0.4, 0.4], color: c.crest, style: STYLE.GLOW })
   }
-  // Where you stand to grab them.
-  props.add(DISC, { position: [LAUNCH_STAND.x, 0.13, LAUNCH_STAND.z], scale: [0.95, 0.04, 0.95], color: '#ffffff' })
-  props.add(DISC, { position: [LAUNCH_STAND.x, 0.17, LAUNCH_STAND.z], scale: [0.75, 0.04, 0.75], color: RUBBER, style: STYLE.GLOW })
-  // The STRETCH LANE: a pink rubber strip on white rails running MAX_PULL (40 m) back
-  // from the stand, rainbow chevrons pointing the way you walk, a white tick every 5 m
-  // (the numbers are painted beside them: signs.js) and a glowing post at the far end.
-  // Its top (0.125) clears the pad's yellow (0.10) it starts on.
-  const laneX = LAUNCH_STAND.x
-  const laneStart = LAUNCH_STAND.z + 0.9
-  const laneEnd = STRETCH_LANE.maxZ
-  const laneMid = (laneStart + laneEnd) / 2
-  const laneLen = laneEnd - laneStart
-  blocks.addOn(laneX, 0, laneMid, 5.2, 0.11, laneLen + 0.4, '#ffffff', STYLE.SMOOTH)
-  blocks.addOn(laneX, 0, laneMid, 4.4, 0.125, laneLen, RUBBER, STYLE.PLATE)
-  const CHEVRONS = ['#ff4a4a', '#ff9a1e', '#ffe23a', '#4be05a', '#2fd0ff', '#b05cff']
-  for (let i = 0, z = LAUNCH_STAND.z + 2.5; z < LAUNCH_STAND.z + MAX_PULL; i += 1, z += 2.5) {
-    if (i % 2 === 1) continue
-    const color = CHEVRONS[(i / 2) % CHEVRONS.length]
-    for (const side of [-1, 1]) {
-      blocks.add(laneX + side * 0.5, 0.15, z + 1.05, 1.3, 0.06, 0.3, color, STYLE.GLOW, side * 0.75)
-    }
-  }
-  for (let m = 5; m <= MAX_PULL; m += 5) {
-    blocks.add(laneX, 0.145, LAUNCH_STAND.z + m, 4.4, 0.05, 0.3, '#ffffff', STYLE.GLOW)
-  }
-  for (const side of [-1, 1]) {
-    blocks.addOn(laneX + side * 2.9, 0, laneEnd, 0.5, 1.6, 0.5, '#ffffff', STYLE.STRIPES)
-    props.add(BALL, { position: [laneX + side * 2.9, 1.9, laneEnd], scale: [0.45, 0.45, 0.45], color: CHEVRONS[5], style: STYLE.GLOW })
+  blocks.addOn(DROP_SPOT.x, -0.4, minZ - 1.2, 4.6, 0.55, 3.4, c.base, STYLE.SMOOTH)
+  blocks.addOn(DROP_SPOT.x, 0.15, minZ - 1.1, 4.2, 0.06, 3.0, STRIP, STYLE.PLATE)
+  props.add(DISC, { position: [DROP_SPOT.x, 0.13, DROP_SPOT.z], scale: [1.2, 0.04, 1.2], color: '#ffffff' })
+  props.add(DISC, { position: [DROP_SPOT.x, 0.17, DROP_SPOT.z], scale: [0.95, 0.04, 0.95], color: c.crest, style: STYLE.GLOW })
+  // Arrows on the strip pointing out over the edge.
+  const ARROWS = ['#ff4a4a', '#ff9a1e', '#ffe23a']
+  for (let i = 0; i < 3; i += 1) {
+    const z = DROP_SPOT.z + 3 + i * 2.6
+    for (const side of [-1, 1]) blocks.add(DROP_SPOT.x + side * 0.6, 0.15, z, 1.6, 0.06, 0.36, ARROWS[i], STYLE.GLOW, -side * 0.75)
   }
 
   // The start arch: striped pillars either side, a beam across the top carrying the
@@ -138,18 +121,9 @@ export function buildRollZone(blocks, props, { detail = true, world = 0 } = {}) 
     }
   }
 
-  // The crown: a giant wooden slingshot standing on the beam - a handle, two prongs
-  // flaring out - with a pink rubber band stretched between the prongs, pulled back
-  // towards the plaza, and a gold ring glowing behind it.
+  // The crown: a giant phone standing on the beam, tipping over the edge, a gold ring
+  // glowing behind it.
   const baseY = ARCH_TOP + 1.4
-  blocks.addOn(0, baseY, archZ, 1.2, 2.2, 1.2, WOOD, STYLE.SMOOTH)
-  for (const side of [-1, 1]) {
-    blocks.add(side * 1.15, baseY + 3.3, archZ, 0.95, 2.8, 0.95, WOOD, STYLE.SMOOTH, 0, 0, -side * 0.5)
-    blocks.add(side * 1.85, baseY + 5.2, archZ, 0.85, 1.4, 0.85, WOOD, STYLE.SMOOTH, 0, 0, -side * 0.15)
-    blocks.addOn(side * 1.95, baseY + 5.9, archZ, 1.05, 0.25, 1.05, c.crest, STYLE.GLOW)
-    // The band, from each prong's tip back to the pouch.
-    blocks.add(side * 0.975, baseY + 5.5, archZ + 1.1, 0.24, 0.24, 2.94, RUBBER, STYLE.GLOW, -side * 0.725)
-  }
-  props.add(BALL, { position: [0, baseY + 5.5, archZ + 2.2], scale: [0.7, 0.55, 0.45], color: RUBBER, style: STYLE.GLOW })
-  props.add(DISC, { position: [0, baseY + 4.2, archZ - 1.2], rotation: [Math.PI / 2, 0, 0], scale: [4.6, 0.3, 4.6], color: c.crest, style: STYLE.GLOW })
+  addPhone(props, 'infinity', { position: [0, baseY + 3.6, archZ], rotation: [Math.PI / 2 - 0.25, 0, 0.2], scale: 7 })
+  props.add(DISC, { position: [0, baseY + 3.8, archZ - 1.4], rotation: [Math.PI / 2, 0, 0], scale: [4.6, 0.3, 4.6], color: c.crest, style: STYLE.GLOW })
 }

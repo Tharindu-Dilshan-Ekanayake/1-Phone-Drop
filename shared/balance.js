@@ -6,23 +6,24 @@
  * Shared by client (display) and server (authority): both always agree on costs and
  * multipliers because they read the same table.
  *
- * The loop (Rubber Arm Launch): do rubber-arm pull-ups for Power -> grab the launch
- * posts, walk back stretching your arms like a slingshot and let go (more Power flings you
- * further, and every metre pays) -> Wins -> stretchier arms, eggs and pull-up bars ->
- * rebirth at max level for a bigger Power multiplier and a higher cap -> fly further
- * still.
+ * The loop (Phone Plunge): practise throwing on the throw pads for SKILL -> walk to the DROP ZONE at the
+ * cliff edge, charge the throw meter and fling your phone off the edge -> it falls through
+ * the clouds onto the hotel far below, smashes its glass roof and then floor after floor
+ * (more Skill smashes deeper, and every metre pays) -> Wins -> newer phones, eggs and
+ * throw pads -> rebirth at max level for a bigger Skill multiplier and a higher cap ->
+ * smash deeper still.
  *
  * Inside the code the template's names stay (so saves and the server never change):
- * `health` is Power, a `tire` is a pair of ARMS, a `pad` is a pull-up bar and a `roll` is
- * a launch. Only what players see was renamed. How each arm looks is
- * client/src/game/armStyles.js.
+ * `health` is SKILL, a `tire` is a PHONE, a `pad` is a throw pad, a `roll` is a drop and a
+ * `zone` is one floor of the hotel. Only what players see was renamed. How each phone
+ * looks is client/src/game/phoneStyles.js.
  */
 
 // --- Health and levels --------------------------------------------------------------
 
-/** Seconds between gains doing pull-ups on a bar: one rep, one gain. */
+/** Seconds between gains on a throw pad: one practice throw, one gain. */
 export const TRAIN_INTERVAL = 0.6
-/** Seconds between the "+N" gains you earn while you fly. */
+/** Seconds between the "+N" Skill gains you earn while your phone falls. */
 export const ROLL_TICK = 1
 /**
  * Walking around the lobby earns Health too: one gain for every WALK_STEP metres
@@ -34,7 +35,7 @@ export const WALK_STEP = 8
  * Your level comes from your Health: reaching level L takes healthForLevel(L) Health.
  * Each level needs LEVEL_GROWTH_EARLY times the last at first, easing towards
  * LEVEL_GROWTH_LATE: early rebirths multiply your gains many times over (a new bar,
- * x2 from the rebirth itself, the next arms), later ones much less, and the levels
+ * x2 from the rebirth itself, the next phone), later ones much less, and the levels
  * keep step so every rebirth takes a little longer than the one before.
  */
 export const LEVEL_BASE = 20
@@ -91,202 +92,235 @@ export function nextRebirthGift(rebirths) {
   return rebirthGift(at)
 }
 
-/** Skipping straight to a rebirth costs this many max-level launches' worth of Wins. */
+/** Skipping straight to a rebirth costs this many max-level drops' worth of Wins. */
 export const REBIRTH_SKIP_ROLLS = 10
 
-// --- Training pads (pull-up bars) ------------------------------------------------
+// --- Training pads (throw pads) --------------------------------------------------
 
 /**
- * Rubber pull-up bars, south to north in world.js order. Hanging from one does a rep
- * (and gains Health) every TRAIN_INTERVAL: your arms stretch as you drop and snap back as
- * you pull up. `rebirths` = rebirths needed; `product` = the SHOP pass that unlocks it
- * instead; `world` = the only world it works in (the beach bars at the north end of the
- * row work in Palm Beach only, and stand locked in World 1 as a teaser).
+ * Throw pads, south to north in world.js order. Standing on one you practise throwing
+ * your phone down its lane at a target: a throw (a rep, and a Skill gain) every
+ * TRAIN_INTERVAL. `rebirths` = rebirths needed; `product` = the SHOP
+ * pass that unlocks it instead; `world` = the only world it works in (the beach
+ * pads at the north end of the row work in Palm Beach only, and stand locked in
+ * World 1 as a teaser).
  */
 export const PADS = [
-  { id: 'starter', name: 'Wooden Bar', mult: 1, rebirths: 0 },
-  { id: 'speed', name: 'Bouncy Bar', mult: 2, rebirths: 1 },
-  { id: 'turbo', name: 'Bubblegum Bar', mult: 4, rebirths: 2 },
-  { id: 'nitro', name: 'Steel Bar', mult: 10, rebirths: 4 },
-  { id: 'rocket', name: 'Rocket Bar', mult: 20, rebirths: 6 },
-  { id: 'diamond', name: 'Crystal Bar', mult: 40, product: 'padVeryOp', tag: 'VERY OP!' },
-  { id: 'galaxy', name: 'Galaxy Bar', mult: 100, product: 'padBest', tag: 'BEST OVERALL!' },
-  // Kept close to the Galaxy Bar: every Power multiplier here speeds up the whole late
-  // game (scripts/balance-sim.mjs) - the beach bars are milestones, not a jump.
-  { id: 'surf', name: 'Surf Bar', mult: 115, rebirths: 10, world: 1 },
-  { id: 'tsunami', name: 'Tsunami Bar', mult: 130, rebirths: 16, world: 1 },
+  { id: 'starter', name: 'Basic Throw Pad', mult: 1, rebirths: 0 },
+  { id: 'speed', name: 'Bouncy Throw Pad', mult: 2, rebirths: 1 },
+  { id: 'turbo', name: 'Turbo Throw Pad', mult: 4, rebirths: 2 },
+  { id: 'nitro', name: 'Steel Throw Pad', mult: 10, rebirths: 4 },
+  { id: 'rocket', name: 'Rocket Throw Pad', mult: 20, rebirths: 6 },
+  { id: 'diamond', name: 'Crystal Throw Pad', mult: 40, product: 'padVeryOp', tag: 'VERY OP!' },
+  { id: 'galaxy', name: 'Galaxy Throw Pad', mult: 100, product: 'padBest', tag: 'BEST OVERALL!' },
+  // Kept close to the Galaxy Throw Pad: every Skill multiplier here speeds up the whole
+  // late game (scripts/balance-sim.mjs) - the beach pads are milestones, not a jump.
+  { id: 'surf', name: 'Surf Throw Pad', mult: 115, rebirths: 10, world: 1 },
+  { id: 'tsunami', name: 'Tsunami Throw Pad', mult: 130, rebirths: 16, world: 1 },
 ]
 
-// --- Arms (the template's tires) ---------------------------------------------------
+// --- Phones (the template's tires) -------------------------------------------------
 
 /**
- * The arms you wear. `power` is the Health every single gain is worth before
- * multipliers (the "+1" of Noodle Arms); `cost` is in Wins; `rarity` (RARITIES) is shown
- * on its stand. Bought in order at the arm shop. They start soft and rubbery - noodle,
- * gummy, jelly - turn to stone, bamboo, robot and metal, then frost, magma and gems, and
- * end as nebula, dragon, cosmic and infinity arms. About x2.6 power for x2.8-x3.3 the
- * Wins each. The ids are the template's (saves and the server key on them).
+ * The phone you drop. `power` is the Skill every single gain is worth before multipliers
+ * (the "+1" of the Button Phone); `cost` is in Wins; `rarity` (RARITIES) is shown on its
+ * stand. Bought in order at the phone shop, they run through the history of the mobile
+ * phone: an old button phone, a flip phone, a slider and a keyboard phone, the first
+ * touch phones with their home buttons, then the notch, then the island - all the way up
+ * to the 18 Pro Max. (No brand names: a published game must not use a real company's
+ * trademarks.) About x2.6 power for x2.8-x3.3 the Wins each. The ids are the template's
+ * (saves and the server key on them). How each one looks: client/src/game/phoneStyles.js.
  */
 export const TIRES = [
-  { id: 'bicycle', name: 'Noodle Arms', power: 1, cost: 0, rarity: 'common' },
-  // Cheap enough to buy with the Wins from your very first launch.
-  { id: 'mountain', name: 'Rubber Band Arms', power: 3, cost: 1, rarity: 'common' },
-  { id: 'wood', name: 'Gummy Arms', power: 5, cost: 15, rarity: 'common' },
-  { id: 'stone', name: 'Bubblegum Arms', power: 12, cost: 75, rarity: 'uncommon' },
-  { id: 'cookie', name: 'Jelly Arms', power: 30, cost: 300, rarity: 'uncommon' },
-  { id: 'pizza', name: 'Stone Arms', power: 75, cost: 1200, rarity: 'rare' },
-  { id: 'donut', name: 'Bamboo Arms', power: 200, cost: 4500, rarity: 'rare' },
-  { id: 'watermelon', name: 'Octopus Arms', power: 500, cost: 16000, rarity: 'rare' },
-  { id: 'monster', name: 'Robot Arms', power: 1250, cost: 55000, rarity: 'epic' },
-  { id: 'mint', name: 'Zebra Arms', power: 3500, cost: 180000, rarity: 'epic' },
-  { id: 'silver', name: 'Chrome Arms', power: 9000, cost: 600000, rarity: 'epic' },
-  { id: 'ice', name: 'Frost Arms', power: 23000, cost: 2e6, rarity: 'epic' },
-  { id: 'gold', name: 'Gilded Arms', power: 60000, cost: 6e6, rarity: 'legendary' },
-  { id: 'lava', name: 'Magma Arms', power: 155000, cost: 17e6, rarity: 'legendary' },
-  { id: 'platinum', name: 'Thunder Arms', power: 400000, cost: 48e6, rarity: 'legendary' },
-  { id: 'emerald', name: 'Emerald Arms', power: 1.05e6, cost: 135e6, rarity: 'legendary' },
-  { id: 'ruby', name: 'Ruby Arms', power: 2.7e6, cost: 380e6, rarity: 'mythic' },
-  { id: 'diamond', name: 'Diamond Arms', power: 7e6, cost: 1.05e9, rarity: 'mythic' },
-  { id: 'rainbow', name: 'Spectrum Arms', power: 1.8e7, cost: 3e9, rarity: 'mythic' },
-  { id: 'unicorn', name: 'Cotton Candy Arms', power: 4.8e7, cost: 8.5e9, rarity: 'mythic' },
-  { id: 'galaxy', name: 'Nebula Arms', power: 1.25e8, cost: 2.4e10, rarity: 'secret' },
-  { id: 'dragon', name: 'Dragon Arms', power: 3.3e8, cost: 6.8e10, rarity: 'secret' },
-  { id: 'cosmic', name: 'Cosmic Arms', power: 8.6e8, cost: 1.9e11, rarity: 'secret' },
-  { id: 'infinity', name: 'Infinity Arms', power: 2.2e9, cost: 5.4e11, rarity: 'secret' },
+  { id: 'bicycle', name: 'Button Phone', power: 1, cost: 0, rarity: 'common' },
+  // Cheap enough to buy with the Wins from your very first drop.
+  { id: 'mountain', name: 'Flip Phone', power: 3, cost: 1, rarity: 'common' },
+  { id: 'wood', name: 'Slider Phone', power: 5, cost: 15, rarity: 'common' },
+  { id: 'stone', name: 'Keyboard Phone', power: 12, cost: 75, rarity: 'uncommon' },
+  { id: 'cookie', name: 'Touch Phone', power: 30, cost: 300, rarity: 'uncommon' },
+  { id: 'pizza', name: 'Phone 3G', power: 75, cost: 1200, rarity: 'rare' },
+  { id: 'donut', name: 'Phone 4', power: 200, cost: 4500, rarity: 'rare' },
+  { id: 'watermelon', name: 'Phone 5', power: 500, cost: 16000, rarity: 'rare' },
+  { id: 'monster', name: 'Phone 6 Plus', power: 1250, cost: 55000, rarity: 'epic' },
+  { id: 'mint', name: 'Phone 7', power: 3500, cost: 180000, rarity: 'epic' },
+  { id: 'silver', name: 'Phone 8', power: 9000, cost: 600000, rarity: 'epic' },
+  { id: 'ice', name: 'Phone X', power: 23000, cost: 2e6, rarity: 'epic' },
+  { id: 'gold', name: 'Phone XS Max', power: 60000, cost: 6e6, rarity: 'legendary' },
+  { id: 'lava', name: 'Phone 11 Pro', power: 155000, cost: 17e6, rarity: 'legendary' },
+  { id: 'platinum', name: 'Phone 12 Pro', power: 400000, cost: 48e6, rarity: 'legendary' },
+  { id: 'emerald', name: 'Phone 13 Pro Max', power: 1.05e6, cost: 135e6, rarity: 'legendary' },
+  { id: 'ruby', name: 'Phone 14 Pro', power: 2.7e6, cost: 380e6, rarity: 'mythic' },
+  { id: 'diamond', name: 'Phone 15 Pro Max', power: 7e6, cost: 1.05e9, rarity: 'mythic' },
+  { id: 'rainbow', name: 'Phone 16 Pro', power: 1.8e7, cost: 3e9, rarity: 'mythic' },
+  { id: 'unicorn', name: 'Phone 16 Pro Max', power: 4.8e7, cost: 8.5e9, rarity: 'mythic' },
+  { id: 'galaxy', name: 'Phone 17 Pro', power: 1.25e8, cost: 2.4e10, rarity: 'secret' },
+  { id: 'dragon', name: 'Phone 17 Pro Max', power: 3.3e8, cost: 6.8e10, rarity: 'secret' },
+  { id: 'cosmic', name: 'Phone 18 Pro', power: 8.6e8, cost: 1.9e11, rarity: 'secret' },
+  { id: 'infinity', name: 'Phone 18 Pro Max', power: 2.2e9, cost: 5.4e11, rarity: 'secret' },
 ]
 
-// --- Launching (the template's rolls) ----------------------------------------------
+// --- Dropping (the template's rolls) -----------------------------------------------
 
 /**
- * How far a launch flings you (in metres): 0 Power still sends you ROLL_BASE metres, and each stage's start
- * is reached with the Power in its `wall`, less WALL_MARGIN; in between, distance
- * follows Power (in log terms) from one stage's start to the next. So the stages'
- * `wall` Power sets the pace. Nothing on the runway stops you: there are no gates.
- * See logic.rollReach.
+ * Depths are metres below the edge you throw from. The hotel's glass roof is DROP_ROOF
+ * metres down: every drop falls that far through the clouds first, smashes the glass and
+ * lands somewhere inside. Floor `i` of the hotel (FLOORS / ZONES) starts at `start`
+ * metres; the glass roof is the top of floor 0.
  */
-export const ROLL_BASE = 60
+export const DROP_ROOF = 300
+
+/**
+ * How deep a drop goes (in metres): 0 Skill still smashes ROLL_BASE metres (through the
+ * roof into the first floor), and each floor is reached with the Skill in its `wall`,
+ * less WALL_MARGIN; in between, depth follows Skill (in log terms) from one floor's top
+ * to the next. So the floors' `wall` Skill sets the pace. See logic.rollReach.
+ */
+export const ROLL_BASE = DROP_ROOF + 60
 export const ROLL_H0 = 50
-/** A stage's `wall` is this many times the Power that just reaches its start. */
+/** A floor's `wall` is this many times the Skill that just reaches its top. */
 export const WALL_MARGIN = 1.3
 
+/** Room themes (client/src/game/roll/roomThemes.js builds each one's furniture). */
+export const ROOM_THEMES = ['pool', 'lounge', 'bedroom', 'bathroom', 'kitchen', 'dining', 'library', 'gym', 'arcade', 'cinema', 'spa', 'ballroom', 'office', 'music', 'kids', 'garden', 'laundry', 'aquarium', 'art', 'vault']
+
 /**
- * The runway's sixty stages: stretches of distance, each a little longer than the one
- * before (100 m, 106 m, 112 m ... about 450 m), with no gates between them - just a new
- * name and sky. `theme` picks the sky (one of twenty). `wall` = the Power that paces how
- * far a launch flies (see ROLL_BASE); each about twice the last. `winsPerMeter` pays for
- * every metre flown in the stage - the further out, the more each metre pays - and
- * `discover` is a one-off prize the first time you ever reach the stage. `smash` is
- * left over from the template's gates and no longer paid. Generated by
- * scripts/gen-stages.py.
+ * The hotel's sixty floors, top to bottom: [id, name, room theme, top (metres below the
+ * roof), wall, winsPerMeter, smash, discover]. Each floor is a stretch of depth a little
+ * longer than the one above (100 m, 106 m, 112 m ... about 450 m). The first twenty are
+ * the hotel proper, the next twenty its deluxe floors, the last twenty its secret
+ * basement levels. `wall` = the Skill that paces how deep a drop smashes (see
+ * ROLL_BASE); each about twice the last. `winsPerMeter` pays for every metre smashed
+ * through on the floor - the deeper, the more each metre pays - and `discover` is a
+ * one-off prize the first time you ever reach the floor. `smash` is left over from the
+ * template and no longer paid. Numbers from scripts/gen-stages.py.
  */
-export const ZONES = [
-  { id: 'grassy', name: 'Backyard', theme: 'grassy', start: 0, wall: 0, winsPerMeter: 0.006, smash: 0, discover: 0 },
-  { id: 'autumn', name: 'Maple Lane', theme: 'autumn', start: 100, wall: 11, winsPerMeter: 0.0072, smash: 2, discover: 5 },
-  { id: 'desert', name: 'Cactus Desert', theme: 'desert', start: 200, wall: 21, winsPerMeter: 0.00984, smash: 3, discover: 7 },
-  { id: 'beach', name: 'Sunny Shore', theme: 'beach', start: 306, wall: 41, winsPerMeter: 0.0135, smash: 4, discover: 9 },
-  { id: 'jungle', name: 'Jungle Vines', theme: 'jungle', start: 418, wall: 79, winsPerMeter: 0.0185, smash: 5, discover: 13 },
-  { id: 'frozen', name: 'Frozen Tundra', theme: 'frozen', start: 536, wall: 150, winsPerMeter: 0.0255, smash: 7, discover: 18 },
-  { id: 'cherry', name: 'Blossom Hills', theme: 'cherry', start: 660, wall: 300, winsPerMeter: 0.0351, smash: 10, discover: 24 },
-  { id: 'candy', name: 'Candy Clouds', theme: 'candy', start: 790, wall: 590, winsPerMeter: 0.0486, smash: 13, discover: 34 },
-  { id: 'mushroom', name: 'Mushroom Meadow', theme: 'mushroom', start: 926, wall: 1200, winsPerMeter: 0.0673, smash: 19, discover: 47 },
-  { id: 'volcano', name: 'Volcano', theme: 'volcano', start: 1068, wall: 2300, winsPerMeter: 0.0934, smash: 26, discover: 65 },
-  { id: 'swamp', name: 'Swamp Hollow', theme: 'swamp', start: 1216, wall: 4600, winsPerMeter: 0.13, smash: 36, discover: 90 },
-  { id: 'crystal', name: 'Crystal Caves', theme: 'crystal', start: 1370, wall: 9200, winsPerMeter: 0.181, smash: 50, discover: 130 },
-  { id: 'ocean', name: 'Coral Reef', theme: 'ocean', start: 1530, wall: 18000, winsPerMeter: 0.253, smash: 70, discover: 180 },
-  { id: 'neon', name: 'Neon City', theme: 'neon', start: 1696, wall: 37000, winsPerMeter: 0.355, smash: 99, discover: 250 },
-  { id: 'sky', name: 'Cloud Highway', theme: 'sky', start: 1868, wall: 75000, winsPerMeter: 0.498, smash: 140, discover: 350 },
-  { id: 'rainbow', name: 'Rainbow Falls', theme: 'rainbow', start: 2046, wall: 150000, winsPerMeter: 0.7, smash: 190, discover: 490 },
-  { id: 'moon', name: 'The Moon', theme: 'moon', start: 2230, wall: 310000, winsPerMeter: 0.987, smash: 270, discover: 690 },
-  { id: 'aurora', name: 'Aurora Peaks', theme: 'aurora', start: 2420, wall: 640000, winsPerMeter: 1.39, smash: 390, discover: 970 },
-  { id: 'space', name: 'Orbit Station', theme: 'space', start: 2616, wall: 1.3e6, winsPerMeter: 1.97, smash: 550, discover: 1400 },
-  { id: 'cosmic', name: 'Star Gate', theme: 'cosmic', start: 2818, wall: 2.7e6, winsPerMeter: 2.8, smash: 780, discover: 1900 },
-  { id: 'hills', name: 'Green Hills', theme: 'grassy', start: 3026, wall: 5.7e6, winsPerMeter: 3.98, smash: 1100, discover: 2800 },
-  { id: 'maple', name: 'Maple Woods', theme: 'autumn', start: 3240, wall: 1.2e7, winsPerMeter: 5.66, smash: 1600, discover: 3900 },
-  { id: 'dunes', name: 'Dune Sea', theme: 'desert', start: 3460, wall: 2.5e7, winsPerMeter: 8.08, smash: 2200, discover: 5600 },
-  { id: 'island', name: 'Palm Island', theme: 'beach', start: 3686, wall: 5.3e7, winsPerMeter: 11.6, smash: 3200, discover: 8000 },
-  { id: 'temple', name: 'Lost Temple', theme: 'jungle', start: 3918, wall: 1.1e8, winsPerMeter: 16.6, smash: 4600, discover: 12000 },
-  { id: 'glacier', name: 'Glacier Pass', theme: 'frozen', start: 4156, wall: 2.4e8, winsPerMeter: 23.8, smash: 6600, discover: 17000 },
-  { id: 'sakura', name: 'Sakura Garden', theme: 'cherry', start: 4400, wall: 5.1e8, winsPerMeter: 34.2, smash: 9500, discover: 24000 },
-  { id: 'sweets', name: 'Sweet Valley', theme: 'candy', start: 4650, wall: 1.1e9, winsPerMeter: 49.3, smash: 14000, discover: 34000 },
-  { id: 'fungi', name: 'Fungi Forest', theme: 'mushroom', start: 4906, wall: 2.3e9, winsPerMeter: 71.3, smash: 20000, discover: 50000 },
-  { id: 'magma', name: 'Magma Core', theme: 'volcano', start: 5168, wall: 5e9, winsPerMeter: 103, smash: 29000, discover: 72000 },
-  { id: 'marsh', name: 'Green Marsh', theme: 'swamp', start: 5436, wall: 1.1e10, winsPerMeter: 150, smash: 42000, discover: 100000 },
-  { id: 'gems', name: 'Gem Mines', theme: 'crystal', start: 5710, wall: 2.4e10, winsPerMeter: 218, smash: 60000, discover: 150000 },
-  { id: 'deep', name: 'Deep Ocean', theme: 'ocean', start: 5990, wall: 5.2e10, winsPerMeter: 317, smash: 88000, discover: 220000 },
-  { id: 'cyber', name: 'Cyber City', theme: 'neon', start: 6276, wall: 1.1e11, winsPerMeter: 462, smash: 130000, discover: 320000 },
-  { id: 'castle', name: 'Sky Castle', theme: 'sky', start: 6568, wall: 2.5e11, winsPerMeter: 676, smash: 190000, discover: 470000 },
-  { id: 'prism', name: 'Prism Path', theme: 'rainbow', start: 6866, wall: 5.6e11, winsPerMeter: 990, smash: 270000, discover: 690000 },
-  { id: 'lunar', name: 'Lunar Craters', theme: 'moon', start: 7170, wall: 1.2e12, winsPerMeter: 1450, smash: 400000, discover: 1e6 },
-  { id: 'lights', name: 'Northern Lights', theme: 'aurora', start: 7480, wall: 2.8e12, winsPerMeter: 2140, smash: 590000, discover: 1.5e6 },
-  { id: 'galaxy', name: 'Galaxy Rift', theme: 'space', start: 7796, wall: 6.2e12, winsPerMeter: 3150, smash: 870000, discover: 2.2e6 },
-  { id: 'infinity', name: 'Infinity', theme: 'cosmic', start: 8118, wall: 1.4e13, winsPerMeter: 4650, smash: 1.3e6, discover: 3.2e6 },
-  { id: 'sunflower', name: 'Sunflower Fields', theme: 'grassy', start: 8446, wall: 3.2e13, winsPerMeter: 6870, smash: 1.9e6, discover: 4.8e6 },
-  { id: 'harvest', name: 'Harvest Valley', theme: 'autumn', start: 8780, wall: 7.2e13, winsPerMeter: 10200, smash: 2.8e6, discover: 7.1e6 },
-  { id: 'oasis', name: 'Golden Oasis', theme: 'desert', start: 9120, wall: 1.6e14, winsPerMeter: 15100, smash: 4.2e6, discover: 1e7 },
-  { id: 'lagoon', name: 'Blue Lagoon', theme: 'beach', start: 9466, wall: 3.7e14, winsPerMeter: 22500, smash: 6.2e6, discover: 1.6e7 },
-  { id: 'canopy', name: 'Treetop Canopy', theme: 'jungle', start: 9818, wall: 8.6e14, winsPerMeter: 33500, smash: 9.3e6, discover: 2.3e7 },
-  { id: 'yeti', name: 'Yeti Mountain', theme: 'frozen', start: 10176, wall: 2e15, winsPerMeter: 50000, smash: 1.4e7, discover: 3.5e7 },
-  { id: 'lantern', name: 'Lantern Garden', theme: 'cherry', start: 10540, wall: 4.6e15, winsPerMeter: 74800, smash: 2.1e7, discover: 5.2e7 },
-  { id: 'cupcake', name: 'Cupcake Kingdom', theme: 'candy', start: 10910, wall: 1.1e16, winsPerMeter: 112000, smash: 3.1e7, discover: 7.8e7 },
-  { id: 'glowcap', name: 'Glowcap Grotto', theme: 'mushroom', start: 11286, wall: 2.5e16, winsPerMeter: 168000, smash: 4.7e7, discover: 1.2e8 },
-  { id: 'inferno', name: 'Inferno Peak', theme: 'volcano', start: 11668, wall: 5.8e16, winsPerMeter: 253000, smash: 7e7, discover: 1.8e8 },
-  { id: 'bayou', name: 'Firefly Bayou', theme: 'swamp', start: 12056, wall: 1.4e17, winsPerMeter: 382000, smash: 1.1e8, discover: 2.7e8 },
-  { id: 'geode', name: 'Geode Valley', theme: 'crystal', start: 12450, wall: 3.2e17, winsPerMeter: 576000, smash: 1.6e8, discover: 4e8 },
-  { id: 'atlantis', name: 'Atlantis', theme: 'ocean', start: 12850, wall: 7.6e17, winsPerMeter: 872000, smash: 2.4e8, discover: 6.1e8 },
-  { id: 'arcade', name: 'Arcade Avenue', theme: 'neon', start: 13256, wall: 1.8e18, winsPerMeter: 1.3e6, smash: 3.7e8, discover: 9.2e8 },
-  { id: 'islands', name: 'Sky Islands', theme: 'sky', start: 13668, wall: 4.3e18, winsPerMeter: 2e6, smash: 5.6e8, discover: 1.4e9 },
-  { id: 'unicorn', name: 'Unicorn Trail', theme: 'rainbow', start: 14086, wall: 1e19, winsPerMeter: 3e6, smash: 8.5e8, discover: 2.1e9 },
-  { id: 'mars', name: 'Red Planet', theme: 'moon', start: 14510, wall: 2.5e19, winsPerMeter: 4.7e6, smash: 1.3e9, discover: 3.2e9 },
-  { id: 'comet', name: 'Comet Ice', theme: 'aurora', start: 14940, wall: 6e19, winsPerMeter: 7.1e6, smash: 2e9, discover: 4.9e9 },
-  { id: 'nebula', name: 'Nebula', theme: 'space', start: 15376, wall: 1.5e20, winsPerMeter: 1.1e7, smash: 3e9, discover: 7.5e9 },
-  { id: 'beyond', name: 'The Beyond', theme: 'cosmic', start: 15818, wall: 3.5e20, winsPerMeter: 1.7e7, smash: 4.6e9, discover: 1.2e10 },
+const FLOOR_TABLE = [
+  ['sunroom-pool', 'Sunroom Pool', 'pool', 0, 0, 0.006, 0, 0],
+  ['sky-lounge', 'Sky Lounge', 'lounge', 100, 11, 0.0072, 2, 5],
+  ['starlight-suite', 'Starlight Suite', 'bedroom', 200, 21, 0.00984, 3, 7],
+  ['marble-bathroom', 'Marble Bathroom', 'bathroom', 306, 41, 0.0135, 4, 9],
+  ['chef-kitchen', 'Chef Kitchen', 'kitchen', 418, 79, 0.0185, 5, 13],
+  ['grand-dining-hall', 'Grand Dining Hall', 'dining', 536, 150, 0.0255, 7, 18],
+  ['quiet-library', 'Quiet Library', 'library', 660, 300, 0.0351, 10, 24],
+  ['fitness-club', 'Fitness Club', 'gym', 790, 590, 0.0486, 13, 34],
+  ['pixel-arcade', 'Pixel Arcade', 'arcade', 926, 1200, 0.0673, 19, 47],
+  ['movie-theater', 'Movie Theater', 'cinema', 1068, 2300, 0.0934, 26, 65],
+  ['lotus-spa', 'Lotus Spa', 'spa', 1216, 4600, 0.13, 36, 90],
+  ['crystal-ballroom', 'Crystal Ballroom', 'ballroom', 1370, 9200, 0.181, 50, 130],
+  ['board-room', 'Board Room', 'office', 1530, 18000, 0.253, 70, 180],
+  ['music-studio', 'Music Studio', 'music', 1696, 37000, 0.355, 99, 250],
+  ['kids-club', 'Kids Club', 'kids', 1868, 75000, 0.498, 140, 350],
+  ['indoor-garden', 'Indoor Garden', 'garden', 2046, 150000, 0.7, 190, 490],
+  ['laundry-room', 'Laundry Room', 'laundry', 2230, 310000, 0.987, 270, 690],
+  ['shark-aquarium', 'Shark Aquarium', 'aquarium', 2420, 640000, 1.39, 390, 970],
+  ['art-gallery', 'Art Gallery', 'art', 2616, 1.3e6, 1.97, 550, 1400],
+  ['hotel-vault', 'Hotel Vault', 'vault', 2818, 2.7e6, 2.8, 780, 1900],
+  ['lagoon-pool', 'Lagoon Pool', 'pool', 3026, 5.7e6, 3.98, 1100, 2800],
+  ['velvet-lounge', 'Velvet Lounge', 'lounge', 3240, 1.2e7, 5.66, 1600, 3900],
+  ['honeymoon-suite', 'Honeymoon Suite', 'bedroom', 3460, 2.5e7, 8.08, 2200, 5600],
+  ['golden-bathroom', 'Golden Bathroom', 'bathroom', 3686, 5.3e7, 11.6, 3200, 8000],
+  ['pastry-kitchen', 'Pastry Kitchen', 'kitchen', 3918, 1.1e8, 16.6, 4600, 12000],
+  ['banquet-hall', 'Banquet Hall', 'dining', 4156, 2.4e8, 23.8, 6600, 17000],
+  ['ancient-archive', 'Ancient Archive', 'library', 4400, 5.1e8, 34.2, 9500, 24000],
+  ['boxing-gym', 'Boxing Gym', 'gym', 4650, 1.1e9, 49.3, 14000, 34000],
+  ['retro-arcade', 'Retro Arcade', 'arcade', 4906, 2.3e9, 71.3, 20000, 50000],
+  ['giant-screen-theater', 'Giant Screen Theater', 'cinema', 5168, 5e9, 103, 29000, 72000],
+  ['hot-spring-spa', 'Hot Spring Spa', 'spa', 5436, 1.1e10, 150, 42000, 100000],
+  ['disco-ballroom', 'Disco Ballroom', 'ballroom', 5710, 2.4e10, 218, 60000, 150000],
+  ['tech-lab', 'Tech Lab', 'office', 5990, 5.2e10, 317, 88000, 220000],
+  ['rock-stage', 'Rock Stage', 'music', 6276, 1.1e11, 462, 130000, 320000],
+  ['toy-room', 'Toy Room', 'kids', 6568, 2.5e11, 676, 190000, 470000],
+  ['jungle-atrium', 'Jungle Atrium', 'garden', 6866, 5.6e11, 990, 270000, 690000],
+  ['steam-laundry', 'Steam Laundry', 'laundry', 7170, 1.2e12, 1450, 400000, 1e6],
+  ['jellyfish-tank', 'Jellyfish Tank', 'aquarium', 7480, 2.8e12, 2140, 590000, 1.5e6],
+  ['sculpture-hall', 'Sculpture Hall', 'art', 7796, 6.2e12, 3150, 870000, 2.2e6],
+  ['diamond-vault', 'Diamond Vault', 'vault', 8118, 1.4e13, 4650, 1.3e6, 3.2e6],
+  ['neon-pool', 'Neon Pool', 'pool', 8446, 3.2e13, 6870, 1.9e6, 4.8e6],
+  ['night-club', 'Night Club', 'lounge', 8780, 7.2e13, 10200, 2.8e6, 7.1e6],
+  ['king-chamber', 'King Chamber', 'bedroom', 9120, 1.6e14, 15100, 4.2e6, 1e7],
+  ['crystal-washroom', 'Crystal Washroom', 'bathroom', 9466, 3.7e14, 22500, 6.2e6, 1.6e7],
+  ['robot-kitchen', 'Robot Kitchen', 'kitchen', 9818, 8.6e14, 33500, 9.3e6, 2.3e7],
+  ['feast-hall', 'Feast Hall', 'dining', 10176, 2e15, 50000, 1.4e7, 3.5e7],
+  ['wizard-library', 'Wizard Library', 'library', 10540, 4.6e15, 74800, 2.1e7, 5.2e7],
+  ['titan-gym', 'Titan Gym', 'gym', 10910, 1.1e16, 112000, 3.1e7, 7.8e7],
+  ['mega-arcade', 'Mega Arcade', 'arcade', 11286, 2.5e16, 168000, 4.7e7, 1.2e8],
+  ['space-cinema', 'Space Cinema', 'cinema', 11668, 5.8e16, 253000, 7e7, 1.8e8],
+  ['lava-spa', 'Lava Spa', 'spa', 12056, 1.4e17, 382000, 1.1e8, 2.7e8],
+  ['galaxy-ballroom', 'Galaxy Ballroom', 'ballroom', 12450, 3.2e17, 576000, 1.6e8, 4e8],
+  ['control-room', 'Control Room', 'office', 12850, 7.6e17, 872000, 2.4e8, 6.1e8],
+  ['laser-studio', 'Laser Studio', 'music', 13256, 1.8e18, 1300000, 3.7e8, 9.2e8],
+  ['candy-playroom', 'Candy Playroom', 'kids', 13668, 4.3e18, 2000000, 5.6e8, 1.4e9],
+  ['mushroom-garden', 'Mushroom Garden', 'garden', 14086, 1e19, 3000000, 8.5e8, 2.1e9],
+  ['slime-laundry', 'Slime Laundry', 'laundry', 14510, 2.5e19, 4700000, 1.3e9, 3.2e9],
+  ['deep-sea-tank', 'Deep Sea Tank', 'aquarium', 14940, 6e19, 7100000, 2e9, 4.9e9],
+  ['treasure-gallery', 'Treasure Gallery', 'art', 15376, 1.5e20, 11000000, 3e9, 7.5e9],
+  ['core-vault', 'Core Vault', 'vault', 15818, 3.5e20, 17000000, 4.6e9, 1.2e10],
 ]
 
-/** Wins pickups down the runway: first at 40 m, then every 80 m. */
-export const TROPHY_FIRST = 40
+export const ZONES = FLOOR_TABLE.map(([id, name, theme, start, wall, winsPerMeter, smash, discover]) => ({
+  id,
+  name,
+  theme,
+  start: DROP_ROOF + start,
+  wall,
+  winsPerMeter,
+  smash,
+  discover,
+}))
+/** The same table by its game name. */
+export const FLOORS = ZONES
+
+/** Wins pickups down the hotel: the first 40 m under the roof, then every 80 m. */
+export const TROPHY_FIRST = DROP_ROOF + 40
 export const TROPHY_SPACING = 80
 /** A trophy is worth this many metres of its zone's Wins (at least 1). */
 export const TROPHY_METERS = 80
 
 /**
- * Seconds from letting go of the stretched arms to flying past the launch posts: the
- * rubber snapping back and slinging you forward. (The pull-back before it is yours: you
- * hold for as long as you like, and the server only hears about the release.)
+ * Seconds from letting go of the DROP button to the phone leaving your hand: the throw's
+ * swing. (The charge before it is yours: you hold for as long as you like, and the server
+ * only hears about the release.)
  */
 export const ROLL_LAUNCH = 0.55
+/** Seconds the phone falls through the sky, from your hand to the hotel's glass roof. */
+export const DROP_AIR = 2.4
+/** Seconds the phone takes to bounce and settle once it stops on a floor. */
+export const DROP_SETTLE = 0.6
+/** Seconds smashing down through the hotel for a drop `below` metres under the roof. */
+export const towerDuration = (below) => 0.8 + 1.7 * Math.log(1 + Math.max(0, below) / 60)
 /**
- * Seconds a launch of `distance` metres takes, the snap included. Logarithmic: long
- * flights stay short.
+ * Seconds a drop to depth `distance` takes: the throw, the fall to the roof, smashing
+ * down floor by floor and settling. Logarithmic: deep drops stay short.
  */
-export const rollDuration = (distance) => ROLL_LAUNCH + 3 + 2.2 * Math.log(1 + distance / 60)
-/** The result popup after you land, before you're back at the launch pad. */
+export const rollDuration = (distance) => ROLL_LAUNCH + DROP_AIR + towerDuration(distance - DROP_ROOF) + DROP_SETTLE
+/** The result popup after the phone stops, before you're back at the drop zone. */
 export const ROLL_RECOVERY = 2.2
 
 /**
- * The stretch meter. Walk up to the launch posts and press LAUNCH: you grab them. Then
- * walk BACK (joystick / S) and your arms stretch like rubber - the meter is how far back
- * you've got, out of as far as your arms reach. At full stretch the rubber twangs: the
- * meter bounces off the top and back, again and again (TWANG_PERIOD a bounce, dipping
- * TWANG_DEPTH). Press LET GO and you fly out between the posts. `accuracy` is how full the
- * meter was when you let go: 1 at the very top of a twang. The grade it lands in decides
- * the launch, each grade clearly apart from the next: how far you fly (`reach`, a share of
- * what your Power alone would send you - half the distance for a WEAK one, half as far
- * again for a PERFECT one) and how many Wins it pays (`bonus`). Auto Launch skips the
- * meter: a plain x1 launch, between GOOD and GREAT.
+ * The throw meter. Stand in the DROP ZONE and hold DROP (or E): the meter charges up, and
+ * once full it wobbles: it bounces off the top and back, again and again (TWANG_PERIOD a
+ * bounce, dipping TWANG_DEPTH). Let go to throw. `accuracy` is how full the meter was when
+ * you let go: 1 at the very top of a bounce. The grade it lands in decides the drop, each
+ * grade clearly apart from the next: how deep it smashes (`reach`, a share of the depth
+ * under the roof your Skill alone would reach - half for a WEAK throw, half as deep again
+ * for a PERFECT one) and how many Wins it pays (`bonus`). Auto Drop skips the meter: a
+ * plain x1 drop, between GOOD and GREAT.
  *
- * Wins are the Power's worth times `bonus` - not paid by the metres the grade adds: late
- * in the game each stage pays ~1.4 times the last, so paying for half as far again would
- * multiply a PERFECT launch's Wins dozens of times over (logic.applyRoll).
+ * Wins are the Skill's worth times `bonus` - not paid by the metres the grade adds: late
+ * in the game each floor pays ~1.4 times the last, so paying for half as deep again would
+ * multiply a PERFECT drop's Wins dozens of times over (logic.applyRoll).
  */
+/** Seconds the throw meter takes to charge from empty to full. */
+export const CHARGE_TIME = 0.9
 /**
- * Seconds per twang at full stretch, and how far down the meter each one dips. The
+ * Seconds per wobble at full charge, and how far down the meter each one dips. The
  * bounce is sharp at the top (|sin|), so the PERFECT moment is ~0.1 s each time: a real
- * test of timing, still fair on a phone, and a launch let go at full stretch is never
+ * test of timing, still fair on a phone, and a throw let go at full charge is never
  * worse than GOOD.
  */
 export const TWANG_PERIOD = 0.75
 export const TWANG_DEPTH = 0.5
-/** The meter (0-1) `seconds` after reaching full stretch: bouncing off the top. */
+/** The meter (0-1) `seconds` after reaching full charge: bouncing off the top. */
 export const twangAt = (seconds) => 1 - TWANG_DEPTH * Math.abs(Math.sin((Math.PI * Math.max(0, seconds)) / TWANG_PERIOD))
 /**
  * Grades by `min` accuracy: PERFECT is the top 12% of the meter, GREAT 30%, GOOD 60%.
@@ -294,18 +328,18 @@ export const twangAt = (seconds) => 1 - TWANG_DEPTH * Math.abs(Math.sin((Math.PI
  * the top within a grade, and a big step up to the next.
  */
 export const HIT_GRADES = [
-  { id: 'perfect', min: 0.88, reach: [1.4, 1.5], bonus: 1.6, label: 'PERFECT!' },
-  { id: 'great', min: 0.7, reach: [1.1, 1.2], bonus: 1.25, label: 'GREAT!' },
-  { id: 'good', min: 0.4, reach: [0.8, 0.9], bonus: 1, label: 'GOOD' },
-  { id: 'weak', min: 0, reach: [0.5, 0.6], bonus: 0.75, label: 'TOO LOOSE...' },
+  { id: 'perfect', min: 0.88, reach: [1.4, 1.5], bonus: 1.6, label: 'PERFECT THROW!' },
+  { id: 'great', min: 0.7, reach: [1.1, 1.2], bonus: 1.25, label: 'GREAT THROW!' },
+  { id: 'good', min: 0.4, reach: [0.8, 0.9], bonus: 1, label: 'GOOD THROW' },
+  { id: 'weak', min: 0, reach: [0.5, 0.6], bonus: 0.75, label: 'WEAK THROW...' },
 ]
 const clampAccuracy = (accuracy) => Math.min(1, Math.max(0, accuracy))
-/** The grade for a meter `accuracy` (0-1), or null for a launch without the meter. */
+/** The grade for a meter `accuracy` (0-1), or null for a drop without the meter. */
 export const hitGrade = (accuracy) => (Number.isFinite(accuracy) ? HIT_GRADES.find((g) => clampAccuracy(accuracy) >= g.min) : null)
 /**
- * How far a launch at meter `accuracy` flings you, as a share of what your Power alone
- * would: 0.5 barely pulled, 1.5 at the top of a twang, in a clear step per grade; 1 for a
- * launch without the meter.
+ * How deep a throw at meter `accuracy` smashes, as a share of the depth under the roof
+ * your Skill alone would reach: 0.5 barely charged, 1.5 at the top of a wobble, in a
+ * clear step per grade; 1 for a drop without the meter.
  */
 export function hitReach(accuracy) {
   const grade = hitGrade(accuracy)
@@ -328,7 +362,7 @@ export const RARITIES = {
   secret: { name: 'Secret', color: '#ff5bd8', order: 6 },
 }
 
-/** `mult` multiplies Health gains. Equipped pets stack additively (see logic.js). */
+/** `mult` multiplies Skill gains. Equipped pets stack additively (see logic.js). */
 export const PETS = {
   cat: { name: 'Cat', rarity: 'common', mult: 1.1 },
   dog: { name: 'Dog', rarity: 'common', mult: 1.15 },
@@ -363,7 +397,7 @@ export const PETS = {
 /**
  * Eggs, bought with Wins. `world` = the only world it hatches in (the Beach Egg: Palm
  * Beach). `pets` are [petId, weight] - weights are percentages and
- * sum to 100. Each egg is priced at about the Wins of a few launches at the stage of the
+ * sum to 100. Each egg is priced at about the Wins of a few drops at the stage of the
  * game whose pets it beats.
  */
 export const EGGS = {
@@ -385,7 +419,7 @@ export const MULTI_HATCH = 3
 export const POTION_DURATION_MS = 5 * 60 * 1000
 
 export const ITEMS = {
-  potionHealth: { name: 'x2 Power Potion', kind: 'potion', boost: 'health', durationMs: POTION_DURATION_MS },
+  potionHealth: { name: 'x2 Skill Potion', kind: 'potion', boost: 'health', durationMs: POTION_DURATION_MS },
   potionWins: { name: 'x2 Wins Potion', kind: 'potion', boost: 'wins', durationMs: POTION_DURATION_MS },
   eggMeadow: { name: 'Grass Egg', kind: 'egg', egg: 'meadow' },
   eggSunset: { name: 'Sunset Egg', kind: 'egg', egg: 'sunset' },
@@ -398,9 +432,9 @@ export const DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000
 export const DAILY_REWARDS = [
   { label: 'x2 Wins', icon: 'potionWins', sub: '5m', grant: { item: 'potionWins' } },
   { label: 'Dragon', icon: 'pet:dragon', sub: 'x1', grant: { pet: 'dragon' } },
-  { label: 'x2 Power', icon: 'potionHealth', sub: '5m', grant: { item: 'potionHealth' } },
+  { label: 'x2 Skill', icon: 'potionHealth', sub: '5m', grant: { item: 'potionHealth' } },
   { label: 'Unicorn Egg', icon: 'egg:unicorn', sub: 'x1', grant: { item: 'eggUnicorn' } },
-  { label: 'x2 Power', icon: 'potionHealth', sub: '5m', grant: { item: 'potionHealth' } },
+  { label: 'x2 Skill', icon: 'potionHealth', sub: '5m', grant: { item: 'potionHealth' } },
   { label: 'x2 Wins', icon: 'potionWins', sub: '5m', grant: { item: 'potionWins' } },
   { label: 'Volcano Egg', icon: 'egg:volcano', sub: 'x1', grant: { item: 'eggVolcano' } },
 ]
@@ -411,12 +445,12 @@ export const DAILY_REWARDS = [
  */
 export const PLAYTIME_REWARDS = [
   { minutes: 3, label: '+10 Wins', icon: 'trophy', grant: { wins: 10 } },
-  { minutes: 8, label: 'x2 Power', icon: 'potionHealth', grant: { item: 'potionHealth' } },
+  { minutes: 8, label: 'x2 Skill', icon: 'potionHealth', grant: { item: 'potionHealth' } },
   { minutes: 15, label: 'Grass Egg', icon: 'egg:meadow', grant: { item: 'eggMeadow' } },
   { minutes: 25, label: 'x2 Wins', icon: 'potionWins', grant: { item: 'potionWins' } },
   { minutes: 35, label: '+250 Wins', icon: 'trophy', grant: { wins: 250 } },
   { minutes: 45, label: 'Sunset Egg', icon: 'egg:sunset', grant: { item: 'eggSunset' } },
-  { minutes: 60, label: 'x2 Power', icon: 'potionHealth', grant: { item: 'potionHealth' } },
+  { minutes: 60, label: 'x2 Skill', icon: 'potionHealth', grant: { item: 'potionHealth' } },
   { minutes: 90, label: 'Unicorn Egg', icon: 'egg:unicorn', grant: { item: 'eggUnicorn' } },
 ]
 
@@ -439,7 +473,7 @@ export const WORLD_PORTALS = {
 
 /**
  * Palm Beach's Secret Star, hidden somewhere in its lobby (STAR in world.js): finding it
- * doubles every Power gain for good, in every world.
+ * doubles every Skill gain for good, in every world.
  */
 export const SECRET_STAR = { world: 1, power: 2 }
 
@@ -447,80 +481,80 @@ export const SECRET_STAR = { world: 1, power: 2 }
 
 /**
  * Palm Beach (World 2), through the portal once you've rebirthed 8 times and hold 1M
- * Wins: a launch park on the beach. Its own Beach Egg, two beach bars and a Secret Star,
- * and its own runway - the same stages, one for one, as beach spots - where every metre,
- * trophy and first-visit prize pays `wins` times as much. Its gates
- * need the same Health as World 1's - a harder World 2 would pay less than World 1 right
- * after each rebirth - so going over is always worth it, and coming back (the same
- * portal) costs nothing.
+ * Wins: a sunny cliff over the sea. Its own Beach Egg, two beach throw pads and a Secret
+ * Star, and its own tower to drop on - the Beach Resort, one floor for each of the
+ * hotel's - where every metre, trophy and first-visit prize pays `wins` times as much.
+ * Its floors need the same Skill as World 1's - a harder World 2 would pay less than
+ * World 1 right after each rebirth - so going over is always worth it, and coming back
+ * (the same portal) costs nothing.
  */
 export const WORLDS = [
-  { id: 'world1', name: 'Stretch Park', wins: 1 },
+  { id: 'world1', name: 'Sky City', wins: 1 },
   { id: 'world2', name: 'Palm Beach', wins: 3 },
 ]
 
-/** Palm Beach's stages: [id, name, theme], one for each of World 1's. */
+/** The Beach Resort's floors in Palm Beach: [id, name, room theme], one for each of World 1's. */
 const WORLD2_STAGES = [
-  ['w2-sandy-shore', 'Sandy Shore', 'beach'],
-  ['w2-seashell-field', 'Seashell Field', 'beach'],
-  ['w2-palm-grove', 'Palm Grove', 'jungle'],
-  ['w2-surf-stadium', 'Surf Shack', 'ocean'],
-  ['w2-coconut-bowl', 'Coconut Bowl', 'beach'],
-  ['w2-lifeguard-tower', 'Lifeguard Tower', 'sky'],
-  ['w2-boardwalk-arena', 'Boardwalk Arena', 'beach'],
-  ['w2-sunset-pier', 'Sunset Pier', 'cherry'],
-  ['w2-tiki-stadium', 'Tiki Huts', 'jungle'],
-  ['w2-coral-bowl', 'Coral Bowl', 'ocean'],
-  ['w2-lagoon-field', 'Lagoon Field', 'ocean'],
-  ['w2-shipwreck-cove', 'Shipwreck Cove', 'swamp'],
-  ['w2-pelican-point', 'Pelican Point', 'sky'],
-  ['w2-beach-party-bowl', 'Beach Party Bowl', 'neon'],
-  ['w2-lighthouse-field', 'Lighthouse Field', 'beach'],
-  ['w2-tide-pool-arena', 'Tide Pool Arena', 'ocean'],
-  ['w2-sandcastle-stadium', 'Sandcastle Hill', 'desert'],
-  ['w2-volcano-isle', 'Volcano Isle', 'volcano'],
-  ['w2-moonlit-bay', 'Moonlit Bay', 'moon'],
-  ['w2-starfish-bowl', 'Starfish Bowl', 'beach'],
-  ['w2-turtle-beach', 'Turtle Beach', 'beach'],
-  ['w2-mango-field', 'Mango Field', 'beach'],
-  ['w2-driftwood-arena', 'Driftwood Arena', 'jungle'],
-  ['w2-seagull-stadium', 'Seagull Rock', 'ocean'],
-  ['w2-surfboard-bowl', 'Surfboard Bowl', 'beach'],
-  ['w2-bonfire-beach', 'Bonfire Beach', 'sky'],
-  ['w2-hammock-field', 'Hammock Field', 'beach'],
-  ['w2-pirate-bay', 'Pirate Bay', 'cherry'],
-  ['w2-reef-stadium', 'Reef Point', 'jungle'],
-  ['w2-sea-breeze-bowl', 'Sea Breeze Bowl', 'ocean'],
-  ['w2-flamingo-field', 'Flamingo Field', 'ocean'],
-  ['w2-aloha-arena', 'Aloha Arena', 'swamp'],
-  ['w2-dune-stadium', 'Dune Ridge', 'sky'],
-  ['w2-rainbow-reef', 'Rainbow Reef', 'neon'],
-  ['w2-island-bowl', 'Island Bowl', 'beach'],
-  ['w2-treasure-cove', 'Treasure Cove', 'ocean'],
-  ['w2-wave-rider-field', 'Wave Rider Field', 'desert'],
-  ['w2-pearl-stadium', 'Pearl Grotto', 'volcano'],
-  ['w2-glowing-bay', 'Glowing Bay', 'moon'],
-  ['w2-coconut-cove', 'Coconut Cove', 'beach'],
-  ['w2-sunrise-shore', 'Sunrise Shore', 'beach'],
-  ['w2-dolphin-bowl', 'Dolphin Bowl', 'beach'],
-  ['w2-palm-paradise', 'Palm Paradise', 'jungle'],
-  ['w2-tropic-stadium', 'Tropic Trail', 'ocean'],
-  ['w2-crab-cove', 'Crab Cove', 'beach'],
-  ['w2-sundown-field', 'Sundown Field', 'sky'],
-  ['w2-kraken-bay', 'Kraken Bay', 'beach'],
-  ['w2-shark-fin-arena', 'Shark Fin Arena', 'cherry'],
-  ['w2-golden-sands', 'Golden Sands', 'jungle'],
-  ['w2-paradise-bowl', 'Paradise Bowl', 'ocean'],
-  ['w2-neon-boardwalk', 'Neon Boardwalk', 'ocean'],
-  ['w2-starlit-beach', 'Starlit Beach', 'swamp'],
-  ['w2-aurora-bay', 'Aurora Bay', 'sky'],
-  ['w2-marlin-stadium', 'Marlin Pier', 'neon'],
-  ['w2-mermaid-lagoon', 'Mermaid Lagoon', 'beach'],
-  ['w2-big-wave-bowl', 'Big Wave Bowl', 'ocean'],
-  ['w2-hula-field', 'Hula Field', 'desert'],
-  ['w2-ocean-kingdom', 'Ocean Kingdom', 'volcano'],
-  ['w2-galaxy-beach', 'Galaxy Beach', 'moon'],
-  ['w2-beach-champions', 'Beach Champions', 'beach'],
+  ['w2-infinity-pool', 'Infinity Pool', 'pool'],
+  ['w2-tiki-lounge', 'Tiki Lounge', 'lounge'],
+  ['w2-seashell-suite', 'Seashell Suite', 'bedroom'],
+  ['w2-coral-bathroom', 'Coral Bathroom', 'bathroom'],
+  ['w2-coconut-kitchen', 'Coconut Kitchen', 'kitchen'],
+  ['w2-seafood-diner', 'Seafood Diner', 'dining'],
+  ['w2-driftwood-library', 'Driftwood Library', 'library'],
+  ['w2-beach-gym', 'Beach Gym', 'gym'],
+  ['w2-boardwalk-arcade', 'Boardwalk Arcade', 'arcade'],
+  ['w2-sunset-cinema', 'Sunset Cinema', 'cinema'],
+  ['w2-seaweed-spa', 'Seaweed Spa', 'spa'],
+  ['w2-luau-ballroom', 'Luau Ballroom', 'ballroom'],
+  ['w2-lifeguard-office', 'Lifeguard Office', 'office'],
+  ['w2-steel-drum-studio', 'Steel Drum Studio', 'music'],
+  ['w2-sandcastle-club', 'Sandcastle Club', 'kids'],
+  ['w2-palm-atrium', 'Palm Atrium', 'garden'],
+  ['w2-towel-laundry', 'Towel Laundry', 'laundry'],
+  ['w2-reef-aquarium', 'Reef Aquarium', 'aquarium'],
+  ['w2-shell-gallery', 'Shell Gallery', 'art'],
+  ['w2-pirate-vault', 'Pirate Vault', 'vault'],
+  ['w2-wave-pool', 'Wave Pool', 'pool'],
+  ['w2-hammock-lounge', 'Hammock Lounge', 'lounge'],
+  ['w2-pelican-suite', 'Pelican Suite', 'bedroom'],
+  ['w2-pearl-bathroom', 'Pearl Bathroom', 'bathroom'],
+  ['w2-mango-kitchen', 'Mango Kitchen', 'kitchen'],
+  ['w2-clam-bake-hall', 'Clam Bake Hall', 'dining'],
+  ['w2-captain-library', 'Captain Library', 'library'],
+  ['w2-surf-gym', 'Surf Gym', 'gym'],
+  ['w2-pier-arcade', 'Pier Arcade', 'arcade'],
+  ['w2-dive-in-cinema', 'Dive-In Cinema', 'cinema'],
+  ['w2-hot-sand-spa', 'Hot Sand Spa', 'spa'],
+  ['w2-hula-ballroom', 'Hula Ballroom', 'ballroom'],
+  ['w2-harbor-office', 'Harbor Office', 'office'],
+  ['w2-ukulele-studio', 'Ukulele Studio', 'music'],
+  ['w2-crab-playroom', 'Crab Playroom', 'kids'],
+  ['w2-banana-garden', 'Banana Garden', 'garden'],
+  ['w2-sail-laundry', 'Sail Laundry', 'laundry'],
+  ['w2-turtle-tank', 'Turtle Tank', 'aquarium'],
+  ['w2-coral-gallery', 'Coral Gallery', 'art'],
+  ['w2-treasure-vault', 'Treasure Vault', 'vault'],
+  ['w2-moonlit-pool', 'Moonlit Pool', 'pool'],
+  ['w2-starfish-lounge', 'Starfish Lounge', 'lounge'],
+  ['w2-mermaid-suite', 'Mermaid Suite', 'bedroom'],
+  ['w2-lagoon-bathroom', 'Lagoon Bathroom', 'bathroom'],
+  ['w2-shipwreck-galley', 'Shipwreck Galley', 'kitchen'],
+  ['w2-kraken-hall', 'Kraken Hall', 'dining'],
+  ['w2-lighthouse-library', 'Lighthouse Library', 'library'],
+  ['w2-shark-gym', 'Shark Gym', 'gym'],
+  ['w2-neon-arcade', 'Neon Arcade', 'arcade'],
+  ['w2-deep-sea-cinema', 'Deep Sea Cinema', 'cinema'],
+  ['w2-volcano-spa', 'Volcano Spa', 'spa'],
+  ['w2-atlantis-ballroom', 'Atlantis Ballroom', 'ballroom'],
+  ['w2-sub-control-room', 'Sub Control Room', 'office'],
+  ['w2-siren-studio', 'Siren Studio', 'music'],
+  ['w2-bubble-playroom', 'Bubble Playroom', 'kids'],
+  ['w2-kelp-garden', 'Kelp Garden', 'garden'],
+  ['w2-tidal-laundry', 'Tidal Laundry', 'laundry'],
+  ['w2-abyss-aquarium', 'Abyss Aquarium', 'aquarium'],
+  ['w2-pearl-gallery', 'Pearl Gallery', 'art'],
+  ['w2-golden-vault', 'Golden Vault', 'vault'],
 ]
 
 const worldZones = (world) =>
@@ -538,39 +572,39 @@ const worldZones = (world) =>
     }
   })
 
-/** Each world's stages, as ZONES: `WORLD_ZONES[profile.world]`. */
+/** Each world's floors, as ZONES: `WORLD_ZONES[profile.world]`. */
 export const WORLD_ZONES = [ZONES, worldZones(1)]
 export const zonesOf = (world) => WORLD_ZONES[world] ?? ZONES
 
 // --- Shop -------------------------------------------------------------------------
 
 /**
- * The shop. Wins are the game's only currency: everything here, like arms and eggs,
+ * The shop. Wins are the game's only currency: everything here, like phones and eggs,
  * is bought with them. `pass` = permanent unlock; `consumable` = grants every time.
  */
 export const SHOP = {
-  healthX2: { name: 'x2 Power', price: 400, kind: 'pass' },
+  healthX2: { name: 'x2 Skill', price: 400, kind: 'pass' },
   winsX2: { name: 'x2 Wins', price: 2500, kind: 'pass' },
-  autoRoll: { name: 'Auto Launch', price: 150, kind: 'pass' },
-  padVeryOp: { name: 'VERY OP! Bar', price: 150000, kind: 'pass' },
-  padBest: { name: 'BEST OVERALL! Bar', price: 2500000, kind: 'pass' },
+  autoRoll: { name: 'Auto Drop', price: 150, kind: 'pass' },
+  padVeryOp: { name: 'VERY OP! Throw Pad', price: 150000, kind: 'pass' },
+  padBest: { name: 'BEST OVERALL! Throw Pad', price: 2500000, kind: 'pass' },
   sphinx: { name: 'Sphinx', price: 2500000, kind: 'consumable', grant: { pet: 'sphinx' }, stock: 1000 },
 }
 
 /**
  * Boxity Gems products, by sku. Prices live in Boxity's catalog, never here: the game
  * only names the sku and, once Boxity confirms the sale, grants what it says. Wins
- * packs grow with you: `winsRolls` max-level launches' worth of Wins.
+ * packs grow with you: `winsRolls` max-level drops' worth of Wins.
  */
 export const GEM_PRODUCTS = {
-  wins_small: { name: 'Pile of Wins', blurb: '10 max-level launches of Wins', icon: 'trophy', grant: { winsRolls: 10 } },
-  wins_big: { name: 'Mountain of Wins', blurb: '60 max-level launches of Wins', icon: 'trophy', grant: { winsRolls: 60 } },
-  potion_bundle: { name: 'Potion Bundle', blurb: '3 x2 Power + 3 x2 Wins potions', icon: 'potionHealth', grant: { items: { potionHealth: 3, potionWins: 3 } } },
+  wins_small: { name: 'Pile of Wins', blurb: '10 max-level drops of Wins', icon: 'trophy', grant: { winsRolls: 10 } },
+  wins_big: { name: 'Mountain of Wins', blurb: '60 max-level drops of Wins', icon: 'trophy', grant: { winsRolls: 60 } },
+  potion_bundle: { name: 'Potion Bundle', blurb: '3 x2 Skill + 3 x2 Wins potions', icon: 'potionHealth', grant: { items: { potionHealth: 3, potionWins: 3 } } },
   volcano_eggs: { name: '3 Volcano Eggs', blurb: 'The best pets in the game', icon: 'egg:volcano', grant: { items: { eggVolcano: 3 } } },
-  auto_roll: { name: 'Auto Launch', blurb: 'Launches you from the Launch Pad', icon: 'tire', grant: { pass: 'autoRoll' } },
-  health_x2: { name: 'x2 Power', blurb: 'Double every Power gain, forever', icon: 'heart', grant: { pass: 'healthX2' } },
-  wins_x2: { name: 'x2 Wins', blurb: 'Double every launch’s Wins, forever', icon: 'trophy', grant: { pass: 'winsX2' } },
-  pad_best: { name: 'Galaxy Bar', blurb: 'Unlocks the x100 Galaxy pull-up bar', icon: 'portal', grant: { pass: 'padBest' } },
+  auto_roll: { name: 'Auto Drop', blurb: 'Throws your phone for you from the Drop Zone', icon: 'tire', grant: { pass: 'autoRoll' } },
+  health_x2: { name: 'x2 Skill', blurb: 'Double every Skill gain, forever', icon: 'heart', grant: { pass: 'healthX2' } },
+  wins_x2: { name: 'x2 Wins', blurb: 'Double every drop’s Wins, forever', icon: 'trophy', grant: { pass: 'winsX2' } },
+  pad_best: { name: 'Galaxy Throw Pad', blurb: 'Unlocks the x100 Galaxy throw pad', icon: 'portal', grant: { pass: 'padBest' } },
 }
 
 /**
@@ -578,7 +612,7 @@ export const GEM_PRODUCTS = {
  * and hyphens. `cooldownMs` keeps a player from chaining them.
  */
 export const AD_REWARDS = {
-  'health-potion': { label: 'x2 Power Potion', icon: 'potionHealth', grant: { item: 'potionHealth' }, cooldownMs: 3 * 60 * 1000 },
+  'health-potion': { label: 'x2 Skill Potion', icon: 'potionHealth', grant: { item: 'potionHealth' }, cooldownMs: 3 * 60 * 1000 },
   'wins-potion': { label: 'x2 Wins Potion', icon: 'potionWins', grant: { item: 'potionWins' }, cooldownMs: 3 * 60 * 1000 },
 }
 
@@ -586,8 +620,8 @@ export const AD_REWARDS = {
 export const SPHINX_STOCK_DEFAULT = 954
 
 /**
- * The three Health packs under the level bar. They grow with you: each gives `share`
- * of the Health your next level needs, for `rolls` launches' worth of Wins at that Health.
+ * The three Skill packs under the level bar. They grow with you: each gives `share`
+ * of the Skill your next level needs, for `rolls` drops' worth of Wins at that Skill.
  * Packs aren't held back by the level cap.
  */
 export const HEALTH_PACKS = [
@@ -606,7 +640,7 @@ export const DAY_MS = 24 * 60 * 60 * 1000
 export const dayNumber = (now) => Math.floor(now / DAY_MS)
 
 /**
- * Login streak: play on consecutive days and every launch pays STREAK_STEP more Wins per
+ * Login streak: play on consecutive days and every drop pays STREAK_STEP more Wins per
  * day in a row (day 1 x1, day 2 x1.1 ... day 11 and on x2). Miss a day and it starts again
  * from day 1 - the reason to come back tomorrow.
  */
@@ -615,7 +649,7 @@ export const STREAK_MAX_DAYS = 11
 export const streakMultiplier = (days) => 1 + STREAK_STEP * (Math.min(STREAK_MAX_DAYS, Math.max(1, days)) - 1)
 
 /**
- * PERFECT combo: PERFECT launches in a row each pay COMBO_STEP more Wins than the last
+ * PERFECT combo: PERFECT throws in a row each pay COMBO_STEP more Wins than the last
  * (the 2nd +10%, the 3rd +20% ... up to +COMBO_MAX); anything less than PERFECT breaks it.
  * Kept for the session, never saved.
  */
@@ -625,34 +659,34 @@ export const comboBonus = (combo) => 1 + Math.min(COMBO_MAX, COMBO_STEP * Math.m
 
 /**
  * Playing together: every other player in your server (and your world) adds CROWD_STEP
- * to your launches' Wins, up to CROWD_MAX - bring your friends.
+ * to your drops' Wins, up to CROWD_MAX - bring your friends.
  */
 export const CROWD_STEP = 0.1
 export const CROWD_MAX = 0.3
 export const crowdBonus = (others) => 1 + Math.min(CROWD_MAX, CROWD_STEP * Math.max(0, others))
 
 /**
- * Lucky gifts: each launch has LUCKY_CHANCE of landing a surprise on top of its Wins.
- * `weight`s are relative. Wins gifts grow with you (`winsRolls` max-level launches' worth);
+ * Lucky gifts: each drop has LUCKY_CHANCE of landing a surprise on top of its Wins.
+ * `weight`s are relative. Wins gifts grow with you (`winsRolls` max-level drops' worth);
  * an egg gift is an egg that fits how far you've got (logic.eggItemFor).
  */
 export const LUCKY_CHANCE = 0.08
 export const LUCKY_GIFTS = [
   { weight: 45, label: 'Bag of Wins', icon: 'trophy', grant: { winsRolls: 4 } },
   { weight: 20, label: 'x2 Wins Potion', icon: 'potionWins', grant: { item: 'potionWins' } },
-  { weight: 20, label: 'x2 Power Potion', icon: 'potionHealth', grant: { item: 'potionHealth' } },
+  { weight: 20, label: 'x2 Skill Potion', icon: 'potionHealth', grant: { item: 'potionHealth' } },
   { weight: 15, label: 'Mystery Egg', icon: 'egg', grant: { egg: true } },
 ]
 
 /**
  * Daily quests: QUESTS_PER_DAY a day - an EASY, a MEDIUM and a HARD one of different
  * kinds, picked fresh each day for each player - and a bonus chest for finishing all
- * three. Rewards grow with you: `winsRolls` max-level launches' worth of Wins (HARD adds
+ * three. Rewards grow with you: `winsRolls` max-level drops' worth of Wins (HARD adds
  * a potion; the chest adds an egg that fits your progress).
  *
  * Each kind counts one thing (`counter`, fed by the session as you play) up to its
  * target; `mode: 'best'` keeps the best single value instead of adding up. `targets` are
- * per tier; `scale` scales them with your best flight so far ('total': that many of it in
+ * per tier; `scale` scales them with your deepest drop so far ('total': that many of it in
  * metres, 'best': that share of it). `{n}` in `text` is the target.
  */
 export const QUESTS_PER_DAY = 3
@@ -663,13 +697,13 @@ export const QUEST_TIERS = [
 ]
 export const QUEST_BONUS = { winsRolls: 15 }
 export const QUEST_TYPES = {
-  launch: { counter: 'launch', text: 'Launch {n} times', targets: [5, 12, 25] },
-  great: { counter: 'great', text: 'Get {n} GREAT or PERFECT launches', targets: [2, 5, 10] },
-  perfect: { counter: 'perfect', text: 'Get {n} PERFECT launches', targets: [1, 3, 6] },
-  combo: { counter: 'combo', mode: 'best', text: 'Hit a PERFECT combo of {n}', targets: [2, 3, 4] },
-  reps: { counter: 'rep', text: 'Do {n} pull-ups', targets: [40, 120, 300] },
-  meters: { counter: 'meters', text: 'Fly {n} m in total', scale: 'total', targets: [4, 10, 25] },
-  far: { counter: 'far', mode: 'best', text: 'Fly {n} m in one launch', scale: 'best', targets: [0.6, 0.8, 0.95] },
+  launch: { counter: 'launch', text: 'Drop your phone {n} times', targets: [5, 12, 25] },
+  great: { counter: 'great', text: 'Get {n} GREAT or PERFECT throws', targets: [2, 5, 10] },
+  perfect: { counter: 'perfect', text: 'Get {n} PERFECT throws', targets: [1, 3, 6] },
+  combo: { counter: 'combo', mode: 'best', text: 'Hit a PERFECT throw combo of {n}', targets: [2, 3, 4] },
+  reps: { counter: 'rep', text: 'Make {n} practice throws', targets: [40, 120, 300] },
+  meters: { counter: 'meters', text: 'Smash {n} m deep in total', scale: 'total', targets: [4, 10, 25] },
+  far: { counter: 'far', mode: 'best', text: 'Smash {n} m deep in one drop', scale: 'best', targets: [0.6, 0.8, 0.95] },
   hatch: { counter: 'hatch', text: 'Hatch {n} pets', targets: [1, 3, 6] },
   minutes: { counter: 'minute', text: 'Play for {n} minutes', targets: [5, 15, 30] },
 }
@@ -677,47 +711,24 @@ export const QUEST_TYPES = {
 // --- Tutorial & badges ------------------------------------------------------------
 
 /**
- * The guide for new players: train, launch, spend the Wins on new arms, launch further,
+ * The guide for new players: train, drop, spend the Wins on a new phone, drop deeper,
  * rebirth. Each step completes when its event fires (and, with `health`, once you have
  * that much); after the last the guide is done.
  */
 export const TUTORIAL = [
-  { text: 'Hang from a pull-up bar to gain Power', event: 'train', target: 'pad0', health: 30 },
-  { text: 'Walk up to the launch posts, pull BACK, then let go!', event: 'roll', target: 'roll' },
-  { text: 'Buy the Rubber Band Arms with your Wins!', event: 'buyTire', target: 'tires' },
+  { text: 'Stand on a throw pad to practise throwing for Skill', event: 'train', target: 'pad0', health: 30 },
+  { text: 'Go to the DROP ZONE, hold DROP and let go at the top!', event: 'roll', target: 'roll' },
+  { text: 'Buy the Flip Phone with your Wins!', event: 'buyTire', target: 'tires' },
 ]
 
 export const BADGES = {
-  firstRoll: { name: 'First Fling' },
+  firstRoll: { name: 'First Drop' },
   firstRebirth: { name: 'First Rebirth' },
   firstPet: { name: 'Pet Owner' },
-  firstWall: { name: 'Explorer' },
-  kilometer: { name: '1 Kilometre Club' },
-  space: { name: 'Space Flier' },
-  cosmic: { name: 'Cosmic Champion' },
+  firstWall: { name: 'Floor Smasher' },
+  kilometer: { name: '1 Kilometre Drop' },
+  space: { name: 'Deluxe Smasher' },
+  cosmic: { name: 'Core Crusher' },
   world2: { name: 'Beach Bum' },
   secretStar: { name: 'Star Finder' },
 }
-
-// --- Rubber arms: how far they stretch ---------------------------------------------
-
-const ARM_INDEX = new Map(TIRES.map((t, i) => [t.id, i]))
-
-/**
- * How grown arms `tireId` are at `level` (0-1): a little from levelling up, mostly from
- * better arms - short at first, until, well upgraded, they hang to the floor and stretch
- * for tens of metres. `cap` is your level cap, so a rebirth's higher cap doesn't shrink them.
- */
-export function armGrowth(tireId, level = 1, cap = 15) {
-  const upgrade = (ARM_INDEX.get(tireId) ?? 0) / (TIRES.length - 1)
-  const lvl = Math.min(1, Math.max(0, (level - 1) / Math.max(1, cap - 1)))
-  return 0.08 + 0.92 * Math.min(1, upgrade * 0.7 + lvl * 0.3)
-}
-
-/**
- * The stretch bonus: every metre you walk back holding the launch posts (out of the most
- * anyone can, world MAX_PULL) flings you further and pays more - up to STRETCH_REACH more
- * distance and STRETCH_WINS more Wins at the full 50 m. Longer arms, further flights.
- */
-export const STRETCH_REACH = 0.5
-export const STRETCH_WINS = 0.5

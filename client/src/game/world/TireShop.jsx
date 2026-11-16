@@ -6,15 +6,14 @@ import { RARITIES, TIRES } from '@shared/balance'
 import { SHOP_STAGES, STAND_SIZE, TIRE_STANDS } from '@shared/world'
 
 import { useGame } from '../../store/game'
-import { createArmDisplayMesh, disposeArmDisplayMesh } from '../armStyles'
-import { BlockSet, disposeBlocks } from '../blocks'
+import { asToyInstance, BlockSet, disposeBlocks, PropBuilder } from '../blocks'
 import { createGlowInstances, disposeGlow } from '../glow'
 import { standLabelSpec, standState } from '../labels/lobbyLabels'
 import { updateWorldLabel } from '../labels/registry'
 import { sharedMaterials, STYLE } from '../materials'
-import { tireGlow, tireRim } from '../tire'
+import { addPhone, phoneCase, phoneDims, phoneTrail } from '../phoneStyles'
 
-/** Stand colours by state, as in the reference: green equipped, blue owned, red not yet. */
+/** Stand colours by state: green equipped, blue owned, red not yet. */
 const STAND_COLORS = {
   equipped: new Color('#3fdc4a'),
   owned: new Color('#38c8ff'),
@@ -23,20 +22,28 @@ const STAND_COLORS = {
 }
 
 const _m = new Matrix4()
-const _q = new Quaternion()
-const _e = new Euler()
 const _p = new Vector3()
-const _s = new Vector3()
 const _halo = new Vector3()
 const _haloQ = new Quaternion()
 const _haloS = new Vector3()
 
-/** Height of a stand's glowing cap above its pad; the arm floats over it. */
+/** Height of a stand's glowing cap above its pad; the phone stands on it. */
 const CAP_TOP = 1.12
-/** Showroom arms' scale: a flexed arm about 2.3 m tall. */
-const SHOWN_ARM = 1.1
-/** How high an arm's middle floats over its stand: clear of the cap. */
-const HOVER = CAP_TOP + SHOWN_ARM * 1.15 + 0.35
+/** Showroom phones' scale: about 2.2 m tall. */
+const SHOWN_PHONE = 2.2
+/** A showroom phone's middle, over its stand. */
+const PHONE_MID = CAP_TOP + SHOWN_PHONE * 0.5 + 0.05
+
+/**
+ * Standing upright with its screen to the plaza (east, +X), tipped back a little: the
+ * phone's screen (+Y) turned to +X, its top end (-Z) up.
+ */
+const SHOWN_TURN = (() => {
+  const basis = new Matrix4().makeBasis(new Vector3(0, 0, -1), new Vector3(1, 0, 0), new Vector3(0, -1, 0))
+  basis.premultiply(new Matrix4().makeRotationZ(-0.12))
+  const e = new Euler().setFromRotationMatrix(basis, 'XYZ')
+  return [e.x, e.y, e.z]
+})()
 
 /**
  * Display stands, all in one block set. The first TIRE_STANDS.length blocks are the
@@ -50,66 +57,73 @@ function buildStands() {
   for (const stand of TIRE_STANDS) {
     const id = TIRES[stand.index].id
     const { x, y, z } = stand
-    // Grey stepped frame, standing clear of the stand's top, like the reference's.
     const e = slab / 2 + 0.1
     for (const side of [-1, 1]) {
       set.addOn(x, y - 0.1, z + side * e, slab + 0.5, 0.45, 0.3, '#c4ccd8', STYLE.SMOOTH)
       set.addOn(x + side * e, y - 0.1, z, 0.3, 0.45, slab + 0.2, '#c4ccd8', STYLE.SMOOTH)
     }
-    // A glowing square ring on the stand in the arms' own colour.
-    const glow = tireGlow(id)
+    // A glowing square ring on the stand in the phone's own colour.
+    const glow = phoneTrail(id)
     for (const side of [-1, 1]) {
       set.addOn(x, y + 0.2, z + side * 1.25, 2.68, 0.06, 0.18, glow, STYLE.GLOW)
       set.addOn(x + side * 1.25, y + 0.2, z, 0.18, 0.06, 2.32, glow, STYLE.GLOW)
     }
-    // Low pedestal with a cap in the arms' base colour.
+    // Low pedestal with a cap in the phone's case colour.
     set.addOn(x, y + 0.2, z, 1.1, 0.7, 1.1, '#f4f7fb', STYLE.SMOOTH)
-    set.addOn(x, y + 0.9, z, 1.5, CAP_TOP - 0.9, 1.5, tireRim(id), STYLE.GLOW)
+    set.addOn(x, y + 0.9, z, 1.5, CAP_TOP - 0.9, 1.5, phoneCase(id), STYLE.GLOW)
   }
-  // A red carpet down the aisle between the two stages, edged in gold.
+  // A blue carpet down the aisle between the two stages, edged in orange light.
   const [front, back] = SHOP_STAGES
-  // The gap between the two stages, whichever side of the plaza they're on.
   const aisleX = (Math.max(front.minX, back.minX) + Math.min(front.maxX, back.maxX)) / 2
   const length = front.maxZ - front.minZ
   const midZ = (front.minZ + front.maxZ) / 2
-  set.addOn(aisleX, 0, midZ, 2.4, 0.06, length, '#d8263a', STYLE.SMOOTH)
-  for (const side of [-1, 1]) set.addOn(aisleX + side * 1.25, 0, midZ, 0.18, 0.1, length, '#ffd21f', STYLE.GLOW)
+  set.addOn(aisleX, 0, midZ, 2.4, 0.06, length, '#1f5fd8', STYLE.SMOOTH)
+  for (const side of [-1, 1]) set.addOn(aisleX + side * 1.25, 0, midZ, 0.18, 0.1, length, '#ff9a2e', STYLE.GLOW)
   return set.build(sharedMaterials().blocks)
 }
 
+/** Every showroom phone, standing on its stand, merged into one mesh. */
+function buildPhones() {
+  const p = new PropBuilder()
+  for (const stand of TIRE_STANDS) {
+    const id = TIRES[stand.index].id
+    // Standing on its cap, however long this one is.
+    const mid = CAP_TOP + (phoneDims(id).length * SHOWN_PHONE) / 2 + 0.05
+    addPhone(p, id, { position: [stand.x, stand.y + mid, stand.z], rotation: SHOWN_TURN, scale: SHOWN_PHONE })
+  }
+  return asToyInstance(p.build(), sharedMaterials().toy)
+}
+
 /**
- * The arm shop: twenty-four display stands on the two showroom stages, each with a pair
- * of arms - one flexing arm, painted as those arms (armStyles.js) - floating above it,
- * turning slowly like a trophy on a turntable and flexing a little. Stands recolour and
- * their labels rewrite as you buy and equip. Three draw calls: stands, arms, halos.
+ * The phone shop: twenty-four display stands on the two showroom stages, each with its
+ * phone standing on it, screen lit, a soft glow behind it in its rarity's colour. Stands
+ * recolour and their labels rewrite as you buy and equip. Three draw calls: stands,
+ * phones, halos.
  */
 export function TireShop() {
-  // As a string: the profile is a fresh copy after every update (a launch, a rep...).
+  // As a string: the profile is a fresh copy after every update (a drop, a rep...).
   const ownedKey = useGame((s) => s.profile.ownedTires.join(','))
   const equipped = useGame((s) => s.profile.equippedTire)
   const standsRef = useRef(null)
   const halosRef = useRef(null)
-  const ballsRef = useRef(null)
 
   const assets = useMemo(() => {
     const stands = buildStands()
+    const phones = buildPhones()
     const count = TIRES.length
-    // Every showroom arm, in one draw call.
-    const balls = createArmDisplayMesh(count)
-    TIRES.forEach((tire, i) => balls.setArm(i, tire.id))
-    balls.count = count
-    // A soft glow behind each arm in its rarity's colour: the rarer, the brighter it reads.
+    // A soft glow behind each phone in its rarity's colour: the rarer, the brighter it reads.
     const halos = createGlowInstances(count, 0.45)
     TIRES.forEach((tire, i) => halos.setColorAt(i, new Color(RARITIES[tire.rarity]?.color ?? '#ffffff')))
     halos.count = count
-    return { stands, balls, halos }
+    return { stands, phones, halos }
   }, [])
 
   useEffect(
     () => () => {
       disposeBlocks(assets.stands)
       disposeGlow(assets.halos)
-      disposeArmDisplayMesh(assets.balls)
+      assets.phones.geometry.dispose()
+      assets.phones.dispose()
     },
     [assets],
   )
@@ -128,27 +142,22 @@ export function TireShop() {
 
   useFrame((state) => {
     const halos = halosRef.current
-    const balls = ballsRef.current
-    if (!halos || !balls) return
+    if (!halos) return
     const t = state.clock.elapsedTime
     for (const stand of TIRE_STANDS) {
-      _p.set(stand.x, stand.y + HOVER + Math.sin(t * 1.6 + stand.index) * 0.15, stand.z)
-      // Turning round on the spot, flexing: a squeeze of the bicep every couple of seconds.
-      const flex = Math.max(0, Math.sin(t * 2.2 + stand.index)) * 0.06
-      _q.setFromEuler(_e.set(0.08, t * 0.6 + stand.index * 0.7, 0, 'YXZ'))
-      balls.setMatrixAt(stand.index, _m.compose(_p, _q, _s.set(SHOWN_ARM * (1 + flex), SHOWN_ARM * (1 - flex * 0.5), SHOWN_ARM * (1 + flex))))
-      // Set back behind the arm as seen from the camera, so it glows round it, not over it.
-      _halo.copy(_p).sub(state.camera.position).normalize().multiplyScalar(1.6).add(_p)
-      halos.setMatrixAt(stand.index, _m.compose(_halo, _haloQ, _haloS.setScalar(SHOWN_ARM * 3.8)))
+      _p.set(stand.x, stand.y + PHONE_MID, stand.z)
+      // Set back behind the phone as seen from the camera, so it glows round it, not over it.
+      _halo.copy(_p).sub(state.camera.position).normalize().multiplyScalar(1.4).add(_p)
+      const pulse = 1 + Math.sin(t * 1.6 + stand.index) * 0.05
+      halos.setMatrixAt(stand.index, _m.compose(_halo, _haloQ, _haloS.setScalar(SHOWN_PHONE * 2.3 * pulse)))
     }
-    balls.instanceMatrix.needsUpdate = true
     halos.instanceMatrix.needsUpdate = true
   })
 
   return (
     <>
       <primitive ref={standsRef} object={assets.stands} />
-      <primitive ref={ballsRef} object={assets.balls} />
+      <primitive object={assets.phones} />
       <primitive ref={halosRef} object={assets.halos} />
     </>
   )

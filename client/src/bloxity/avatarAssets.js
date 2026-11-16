@@ -12,6 +12,7 @@
  */
 
 import { apiUrl, staticUrl } from './env'
+import { getSDK, safeCall } from './sdk'
 
 /**
  * Where avatar assets live. Built on every call from the Boxity environment (see
@@ -101,6 +102,19 @@ export const WORN_SLOTS = {
 for (const [slot, cfg] of Object.entries(WORN_SLOTS)) {
   cfg.mesh ??= (id) => assetUrls.accessoryMesh(slot, id)
   cfg.texture ??= (id) => assetUrls.accessoryTexture(slot, id)
+}
+
+/**
+ * Where worn item `id` in `slot` lives: the SDK's own answer
+ * (`avatar.getAccessoryUrls(field, id)`) when it has one, so a moved or renamed asset
+ * folder never breaks a look; else the slot's usual path.
+ */
+export function wornUrls(slot, id) {
+  const cfg = WORN_SLOTS[slot]
+  const avatar = getSDK()?.avatar
+  const fromSdk = safeCall(avatar?.getAccessoryUrls?.bind(avatar), cfg.idKey, id)
+  if (fromSdk?.mesh && fromSdk?.texture) return { mesh: fromSdk.mesh, texture: fromSdk.texture }
+  return { mesh: cfg.mesh(id), texture: cfg.texture(id) }
 }
 
 /** Skin ids fall back to "0" rather than being skipped. */

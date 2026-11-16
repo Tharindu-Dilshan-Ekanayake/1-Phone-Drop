@@ -50,6 +50,8 @@ function normalizeClip(id, clip) {
 
 /** Fetches the catalog once; later calls share the same promise. Never rejects. */
 export function loadEmotes() {
+  // No Boxity environment (the SDK never loaded): no catalog to fetch.
+  if (!apiUrl()) return Promise.resolve(clips)
   if (!loading) {
     loading = fetch(`${apiUrl()}/v1/avatar/emotes`)
       .then((res) => (res.ok ? res.json() : []))

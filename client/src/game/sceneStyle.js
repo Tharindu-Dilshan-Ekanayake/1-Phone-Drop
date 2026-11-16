@@ -1,8 +1,7 @@
 /**
- * The scene's whole look in one place: the Candy Canyon - a cotton-candy sky, periwinkle
- * overhead melting to a pink haze at the horizon, puffy cloud and a warm sun, a mint
- * plaza with a hot-pink path, and frosted candy mesas in pastel strata all round it
- * (hills.js), the launch runway running off between them.
+ * The scene's whole look in one place: Sky City - a bright blue sky over a rooftop plaza
+ * of pale tiles with a glowing blue walkway, glass towers all round it (hills.js), and the
+ * cliff edge to the north where the phones go over.
  *
  * Colours are sRGB hex, exactly as you would pick them in an image editor.
  *
@@ -12,8 +11,9 @@
  * ground only gets the cool fill, so shadows read blue and the lit side gold.
  */
 
-/** Style id of the candy mesas (materials STYLE.MESA; a number here so this file stays import-free). */
-const STYLE_MESA = 15
+/** Style ids (materials STYLE; numbers here so this file stays import-free): glass towers, green-capped cliffs. */
+const STYLE_WINDOWS = 2
+const STYLE_HILL = 14
 
 /** The home team's colours: everything built for the venue uses these. */
 export const TEAM = {
@@ -24,10 +24,10 @@ export const TEAM = {
 }
 
 export const SKY = {
-  /** Straight up: periwinkle. */
-  top: '#5b6dff',
-  /** At eye level: pink haze. Fog uses the same colour so distant ground melts into the sky. */
-  horizon: '#ffd2ea',
+  /** Straight up: a deep, bright blue. */
+  top: '#2f7dff',
+  /** At eye level: pale sky blue. Fog uses the same colour so the city far below melts into it. */
+  horizon: '#cdeaff',
   /** Lower = the deep colour reaches further down towards the horizon. */
   exponent: 0.6,
   /** The sun's glow round its direction, and how strong it is. */
@@ -76,10 +76,10 @@ export const PALETTE = {
 export const VENUES = [
   {
     beach: false,
-    primary: TEAM.blue,
-    dark: TEAM.navy,
+    primary: '#ff7a1a',
+    dark: '#16233f',
     light: TEAM.white,
-    accent: TEAM.gold,
+    accent: '#2fc6ff',
     concrete: PALETTE.concrete,
     wall: '#c4c9d2',
     vip: '#d5dae1',
@@ -91,13 +91,17 @@ export const VENUES = [
     surround: '#3fb23f',
     strip: PALETTE.turf,
     shopFloor: PALETTE.shopFloor,
-    logo: { rim: '#ffd21f', ring: '#7a2a8a', inner: '#ff5fa8', top: 'CANDY', bottom: 'CANYON' },
-    /** The mesas round the lobby: candy rock by terrace (low to high), and what grows on them. */
-    hills: { rock: ['#ffa27e', '#ff8aa8', '#f08ad8', '#c08cff', '#94a2ff'], cap: STYLE_MESA, trees: 'candy' },
-    endNorth: 'FLY FAR!',
+    logo: { rim: '#2fc6ff', ring: '#16233f', inner: '#ff7a1a', top: 'SKY', bottom: 'CITY' },
+    /**
+     * The skyline round the lobby: glass towers in building-sized blocks of colour
+     * (`mixed`), their windows lit, with antennas, air conditioners, water tanks and
+     * little gardens on their roofs.
+     */
+    hills: { rock: ['#8fc4ff', '#f4f7fb', '#5fa8f0', '#bfe6ff', '#ffb37a', '#3f7fd8'], style: STYLE_WINDOWS, mixed: true, trees: 'roof' },
+    endNorth: 'DROP IT!',
     /** The start arch and the ball shop's stages and sign. */
-    arch: { pillar: '#ffd21f', base: TEAM.navy, glow: '#ffe27a', crest: '#ffb81f' },
-    shop: { band: '#ffd21f', strip: '#ffe27a', post: '#ffd21f', panel: TEAM.navy },
+    arch: { pillar: '#ff7a1a', base: '#16233f', glow: '#bff6ff', crest: '#2fc6ff' },
+    shop: { band: '#2fc6ff', strip: '#bff6ff', post: '#ff7a1a', panel: '#16233f' },
   },
   {
     beach: true,
@@ -115,19 +119,19 @@ export const VENUES = [
     surround: '#f2dca0',
     strip: ['#f2dca0', '#ead196'],
     shopFloor: '#fbeed0',
-    logo: { rim: '#ffd27a', ring: '#0b6f86', inner: '#ff6f61', top: 'PALM BEACH', bottom: 'PARK' },
-    hills: { rock: ['#f2d49a', '#ecc684', '#e2b672', '#d8a866', '#cf9c5e'], cap: STYLE_MESA, trees: 'palm' },
+    logo: { rim: '#16b8c4', ring: '#ff6f61', inner: '#ffd27a', top: 'PALM BEACH', bottom: 'RESORT' },
+    hills: { rock: ['#e8c890', '#dcb27a', '#cf9c5e', '#c08a4e', '#b07a42'], style: STYLE_HILL, trees: 'palm' },
     endNorth: 'PALM BEACH',
-    arch: { pillar: '#16b8c4', base: '#0b6f86', glow: '#bff6ff', crest: '#ff6f61' },
-    shop: { band: '#ff6f61', strip: '#ffd27a', post: '#16b8c4', panel: '#0b6f86' },
+    arch: { pillar: '#ff6f61', base: '#0b6f86', glow: '#ffe6b8', crest: '#16b8c4' },
+    shop: { band: '#16b8c4', strip: '#bff6ff', post: '#ff6f61', panel: '#0b6f86' },
   },
 ]
 export const venueOf = (world) => VENUES[world] ?? VENUES[0]
 
 export const LIGHTS = {
-  /** Lilac fill from the sky, a warm pink bounce off the candy ground. */
-  hemiSky: '#dcd8ff',
-  hemiGround: '#e8b4c4',
+  /** A cool fill from the blue sky, a soft grey-blue bounce off the rooftop. */
+  hemiSky: '#d8e8ff',
+  hemiGround: '#c4d2e6',
   hemiIntensity: 2.0,
 
   /** A bright, high midday sun. */

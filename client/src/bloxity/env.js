@@ -1,30 +1,19 @@
-// With its extension: vite.config.js imports this file too.
 import { getSDK, safeCall, toUnsubscribe, waitForSDK } from './sdk.js'
 
 /**
  * Which Boxity deployment this page talks to: prod, stage or a local stack.
  *
- * The ONE place the game finds Boxity's URLs. Nothing else may hardcode an
- * api/play/static/portal URL or guess the environment from the hostname, the referrer
- * or a build flag: Boxity tells the page where it runs.
+ * The ONE place the game finds Boxity's URLs, and it never writes one down: Boxity
+ * tells the page where it runs. Nothing may hardcode an api/play/static/portal URL or
+ * guess the environment from the hostname, the referrer or a build flag.
  *
  *  - Once the SDK has loaded, `Legion.SDK.environment()` is the answer (and
  *    `Legion.SDK.onEnvironmentChanged` reports a change).
  *  - Before that, `window.BLOXITY_ENV` - the same object the SDK reads, injected by the
  *    host page (or, in `vite dev`, by the plugin in vite.config.js).
- *  - With neither, production.
- *
- * Kept free of browser globals at module level: vite.config.js imports PROD_ENV.
+ *  - With neither (the SDK script blocked or failed), null: there is no Boxity to talk
+ *    to, and everything that needs it falls back (guest play, the stand-in avatar).
  */
-
-/** Production. The only copy of these literals in the client. */
-export const PROD_ENV = Object.freeze({
-  env: 'prod',
-  apiUrl: 'https://api.bloxity.io',
-  playUrl: 'https://play.bloxity.io',
-  portalUrl: 'https://bloxity.io',
-  staticUrl: 'https://static.bloxity.io',
-})
 
 const ENVS = ['prod', 'stage', 'local']
 const URL_KEYS = ['apiUrl', 'playUrl', 'portalUrl', 'staticUrl']
@@ -52,21 +41,22 @@ function parseEnvironment(raw) {
 }
 
 /**
- * The current environment: `{ env, apiUrl, playUrl, portalUrl, staticUrl }`.
- * Cheap enough to call whenever a URL is built; never cache its result in a module
- * constant (the SDK may report a different one once it loads).
+ * The current environment: `{ env, apiUrl, playUrl, portalUrl, staticUrl }`, or null
+ * when Boxity hasn't told us one. Cheap enough to call whenever a URL is built; never
+ * cache its result in a module constant (the SDK may report a different one once it
+ * loads).
  */
 export function environment() {
   const sdk = getSDK()
   const fromSdk = sdk ? parseEnvironment(safeCall(sdk.environment?.bind(sdk))) : null
   if (fromSdk) return fromSdk
-  const injected = typeof window !== 'undefined' ? parseEnvironment(window.BLOXITY_ENV) : null
-  return injected || PROD_ENV
+  return typeof window !== 'undefined' ? parseEnvironment(window.BLOXITY_ENV) : null
 }
 
-export const apiUrl = () => environment().apiUrl
-export const playUrl = () => environment().playUrl
-export const staticUrl = () => environment().staticUrl
+/** The environment's URLs; '' when there is none, so a request fails instead of guessing. */
+export const apiUrl = () => environment()?.apiUrl ?? ''
+export const playUrl = () => environment()?.playUrl ?? ''
+export const staticUrl = () => environment()?.staticUrl ?? ''
 
 /**
  * Calls `listener(environment())` whenever the SDK reports a change. Waits for the SDK

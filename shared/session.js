@@ -1,4 +1,4 @@
-import { comboBonus, crowdBonus, dayNumber, levelCap, EGGS, hitGrade, ITEMS, MULTI_HATCH, PADS, ROLL_TICK, SHOP, TIRES, TRAIN_INTERVAL, WALK_STEP, ZONES } from './balance.js'
+import { comboBonus, crowdBonus, dayNumber, EGGS, hitGrade, ITEMS, MULTI_HATCH, PADS, ROLL_TICK, SHOP, TIRES, TRAIN_INTERVAL, WALK_STEP, ZONES } from './balance.js'
 import { applyStreak, claimQuest, claimQuestBonus, ensureQuests, progressQuests, questText, rollLuckyGift } from './engage.js'
 import {
   advanceTutorial,
@@ -30,17 +30,17 @@ import {
   usePortal,
   usePotion,
 } from './logic.js'
-import { eggStandNear, FREE_REWARD, inRect, inRollZone, MAX_MOVE_SPEED, MAX_PULL, maxPullFor, pullBackAt, onPad, portalAt, STAR, standRect, TIRE_STANDS } from './world.js'
+import { eggStandNear, FREE_REWARD, inRect, inRollZone, MAX_MOVE_SPEED, onPad, portalAt, STAR, standRect, TIRE_STANDS } from './world.js'
 
 const TIRE_INDEX = Object.fromEntries(TIRES.map((t, i) => [t.id, i]))
-/** Reaching Outer Space earns its badge; the last stage has its own. */
-const SPACE_ZONE = ZONES.findIndex((z) => z.id === 'space')
+/** Reaching the hotel's deluxe floors (floor 21) earns its badge; the last floor has its own. */
+const SPACE_ZONE = 20
 
 /** Quest progress is sent at least this often (seconds) while it's changing. */
 const QUEST_SYNC = 5
 /** How far off a pad still counts as "on" it (network jitter). */
 const PAD_SLACK = 0.8
-/** Same for the roll zone. */
+/** Same for the drop zone. */
 const ROLL_SLACK = 1.5
 /** Tires are bought by standing at their stand; allow for a little lag. */
 const STAND_SLACK = 2
@@ -199,8 +199,8 @@ export class PlayerSession {
     },
 
     /**
-     * Kicks your ball: only from the KICK ZONE, and not while one is still out.
-     * `accuracy` (0-1) is where the timing meter stopped; absent for Auto Kick.
+     * Drops your phone: only from the DROP ZONE, and not while one is still falling.
+     * `accuracy` (0-1) is where the throw meter stopped; absent for Auto Drop.
      */
     roll(payload, now) {
       if (now < this.busyUntil) return
@@ -213,10 +213,7 @@ export class PlayerSession {
       this.session.combo = grade?.id === 'perfect' ? (this.session.combo || 0) + 1 : 0
       const combo = this.session.combo
       const others = Math.max(0, Math.floor(this.getOthers?.() || 0))
-      // How far back down the stretch lane you were (no further than your arms reach).
-      const reach = maxPullFor(this.profile.equippedTire, this.profile.level, levelCap(this.profile.rebirths))
-      const pulled = Math.min(reach + 0.5, pullBackAt(p.x, p.z))
-      const result = applyRoll(this.profile, now, accuracy, comboBonus(combo) * crowdBonus(others), pulled / MAX_PULL)
+      const result = applyRoll(this.profile, now, accuracy, comboBonus(combo) * crowdBonus(others))
       const gift = rollLuckyGift(this.profile, this.rand)
       this.busyUntil = now + result.cooldown * 1000
       this.rollingUntil = now + result.duration * 1000
@@ -237,7 +234,6 @@ export class PlayerSession {
         combo,
         others,
         gift,
-        stretch: Math.round(pulled * 10) / 10,
       })
       this.onRoll?.(result)
       this.quest('launch', 1, now)
@@ -246,7 +242,7 @@ export class PlayerSession {
       this.quest('combo', combo, now)
       this.quest('meters', result.distance, now)
       this.quest('far', result.distance, now)
-      // The HUD holds the new Wins back until the tire stops; the profile can go now.
+      // The HUD holds the new Wins back until the phone stops; the profile can go now.
       this.dirty = true
       this.tutorial('roll')
       this.badge('firstRoll')

@@ -5,15 +5,16 @@ import { iconUrl } from './icons'
 import StrokeText from './StrokeText'
 
 const TIPS = [
-  'Hang from a pull-up bar to gain Power automatically!',
-  'More Power = you fly further, and every metre pays Wins!',
-  'Let go at the very top of the stretch for a PERFECT launch: x1.5 distance, x1.6 Wins!',
-  'Rebirth at max level for x2, x3, x4... Power and a higher level cap.',
-  'The further you fly, the more each metre pays.',
-  'Spend Wins on stretchier arms, pets and better pull-up bars.',
-  'Pets multiply all the Power you gain.',
-  'You earn Power every second you fly!',
-  'Every pair of arms looks different - collect all 24!',
+  'Stand on a throw pad to practise throwing - every throw gives Skill!',
+  'More Skill = your phone smashes deeper, and every metre pays Wins!',
+  'Let go of DROP at the very top of the meter for a PERFECT throw: x1.5 depth, x1.6 Wins!',
+  'Rebirth at max level for x2, x3, x4... Skill and a higher level cap.',
+  'The deeper the floor, the more each metre pays.',
+  'Spend Wins on newer phones, pets and better throw pads.',
+  'Pets multiply all the Skill you gain.',
+  'You earn Skill every second your phone falls!',
+  'Every phone looks different - collect all 24!',
+  'Reach a new floor for the first time for a big Wins prize!',
 ]
 
 /**
@@ -85,7 +86,7 @@ export function LoadingScreen({ done }) {
           </StrokeText>
         </span>
         <span className="text-base md:text-xl" style={{ marginTop: '0.4em' }}>
-          <StrokeText stroke={5}>TRAIN • STRETCH • FLY • REBIRTH</StrokeText>
+          <StrokeText stroke={5}>TRAIN • DROP • SMASH • REBIRTH</StrokeText>
         </span>
       </h1>
 
