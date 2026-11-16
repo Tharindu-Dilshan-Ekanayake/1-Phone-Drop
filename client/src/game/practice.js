@@ -1,12 +1,12 @@
 import { Vector3 } from 'three'
 
-import { PAD_X, padCenterZ } from '@shared/world'
+import { clampToWalkable, groundHeightAt, PAD_X, PAD_YAW, padCenterZ } from '@shared/world'
 
 /**
- * Practice throws on the throw pads: you stand on a pad and throw your phone down its lane
- * at a target, over and over, a throw every rep (TRAIN_INTERVAL; the Skill itself comes
- * from the authority, as before). Shared by the pads' scenery (structures.js), the
- * throwers (Player, RemoteAvatars) and the phones in flight (PracticeThrows.jsx).
+ * Throwing your phone for Skill (toss.js starts a throw; the Skill comes from the
+ * authority): on a throw pad down its lane at the target, anywhere else a few metres
+ * ahead. Shared by the pads' scenery (structures.js), the throwers (Player,
+ * RemoteAvatars) and the phones in flight (PracticeThrows.jsx).
  */
 
 /** The target's middle down each pad's lane (x), and the height of its top. */
@@ -15,8 +15,12 @@ export const THROW_TARGET_TOP = 0.15
 /** Where pad `index`'s target is. */
 export const throwTargetZ = (index) => padCenterZ(index)
 
-/** How far through a rep (0-1) the phone leaves the hand. */
+/** Seconds one throw takes, reaching back to straightening up again. */
+export const TOSS_TIME = 0.45
+/** How far through a throw (0-1) the phone leaves the hand. */
 export const THROW_RELEASE = 0.6
+/** How far ahead a throw off the pads lands (m). */
+export const TOSS_REACH = 7
 /** Seconds a practice phone flies, lies on the target, and shrinks away. */
 export const THROW_FLIGHT = 0.5
 export const THROW_LIE = 0.5
@@ -39,36 +43,41 @@ export const throws = Array.from({ length: MAX_THROWS }, () => ({
 let next = 0
 
 /**
- * Throws phone `phoneId` from (x, y, z) - the thrower's hand - to the target at (toX, toZ).
+ * Throws phone `phoneId` from (x, y, z) - the thrower's hand - to land at (toX, toY, toZ).
  * Allocation-free: safe to call from a frame loop.
  */
-export function spawnThrow(x, y, z, toX, toZ, phoneId) {
+export function spawnThrow(x, y, z, toX, toZ, phoneId, toY = THROW_TARGET_TOP) {
   const t = throws[next]
   next = (next + 1) % MAX_THROWS
   t.active = true
   t.start = performance.now()
   t.from.set(x, y, z)
   // Not dead centre every time: a little scatter round the bullseye.
-  t.to.set(toX + (Math.random() - 0.5) * 0.9, THROW_TARGET_TOP, toZ + (Math.random() - 0.5) * 0.9)
+  t.to.set(toX + (Math.random() - 0.5) * 0.9, toY, toZ + (Math.random() - 0.5) * 0.9)
   t.phoneId = phoneId
   t.spin = Math.random() < 0.5 ? 1 : -1
   t.turn = (Math.random() - 0.5) * 1.6
   t.landed = false
 }
 
-/** Fraction (0-1) of a rep at stride phase `stride` (radians, a rep per turn). */
-export const repFraction = (stride) => {
-  const f = (stride / (Math.PI * 2)) % 1
-  return f < 0 ? f + 1 : f
+/**
+ * Where the phone leaves a thrower's right hand, standing at `pos` facing `yaw` (down a
+ * pad's lane by default): up over the shoulder and a little forward.
+ */
+export function releasePoint(pos, out, yaw = PAD_YAW) {
+  const fx = Math.sin(yaw)
+  const fz = Math.cos(yaw)
+  return out.set(pos.x + fx * 0.55 - fz * 0.35, pos.y + 2.25, pos.z + fz * 0.55 + fx * 0.35)
 }
 
-/** Whether a rep's release fell between fractions `prev` and `now` (which may have wrapped). */
-export const releasedBetween = (prev, now) => (prev <= now ? prev < THROW_RELEASE && now >= THROW_RELEASE : prev < THROW_RELEASE || now >= THROW_RELEASE)
+const _land = { x: 0, z: 0 }
 
 /**
- * Where the phone leaves a thrower's right hand, standing at `pos` facing down the lane
- * (east, +X: their right side is +Z): up over the shoulder and a little forward.
+ * Where a throw lands: on throw pad `pad`, its target down the lane; anywhere else
+ * (`pad` -1) TOSS_REACH ahead along `yaw`, on the ground (kept on the plaza).
  */
-export function releasePoint(pos, out) {
-  return out.set(pos.x + 0.55, pos.y + 2.25, pos.z + 0.35)
+export function tossTarget(pos, yaw, pad, out) {
+  if (pad >= 0) return out.set(THROW_TARGET_X, THROW_TARGET_TOP, throwTargetZ(pad))
+  clampToWalkable(pos.x + Math.sin(yaw) * TOSS_REACH, pos.z + Math.cos(yaw) * TOSS_REACH, _land)
+  return out.set(_land.x, groundHeightAt(_land.x, _land.z) + 0.02, _land.z)
 }

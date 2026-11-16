@@ -2,15 +2,14 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Vector3 } from 'three'
 
-import { PAD_YAW, padAt } from '@shared/world'
+import { padAt } from '@shared/world'
 
 import { remotePlayers } from '../../net/remotePlayers'
 import { getQuality } from '../../store/quality'
 import { emoteFromAnim } from '../../bloxity/emotes'
 import { asToyInstance } from '../blocks'
 import { handPhoneGeometry } from '../handPhone'
-import { RUN_CADENCE } from '../kick'
-import { releasedBetween, releasePoint, repFraction, spawnThrow, THROW_RELEASE, THROW_TARGET_X, throwTargetZ } from '../practice'
+import { releasePoint, spawnThrow, THROW_RELEASE, tossTarget } from '../practice'
 import { sharedMaterials } from '../materials'
 import { BloxityAvatar } from '../PlayerAvatar'
 
@@ -20,11 +19,12 @@ const PICK_MS = 500
 const MAX_SPEED = 10.875
 const _up = new Vector3(0, 1, 0)
 const _hand = new Vector3()
+const _target = new Vector3()
 
 /**
  * One other player as their real Bloxity avatar, dressed as they are and holding their
  * phone, posed by the same playerPose as yours from what the network says they're doing:
- * walking pace, practising on a throw pad, jumping, winding up a throw at the edge. Their
+ * walking pace, throwing their phone for Skill, jumping, winding up a drop at the edge. Their
  * drops play the throw (RemotePlayers works it out: `r.throwT`); the phone itself falls
  * on their own screen.
  */
@@ -34,7 +34,7 @@ function RemoteAvatar({ sessionId, look }) {
   const lastY = useRef(null)
   const handRef = useRef(null)
   const phoneRef = useRef(null)
-  const motionRef = useRef({ time: 0, speed: 0, grounded: true, maxSpeed: MAX_SPEED, vy: 0, stride: 0, windup: 0, throwT: 0 })
+  const motionRef = useRef({ time: 0, speed: 0, grounded: true, maxSpeed: MAX_SPEED, vy: 0, stride: 0, windup: 0, throwT: 0, tossF: 1 })
   /** Their phone in their hand: one mesh, its geometry swapped when they change phone. */
   const phone = useMemo(() => asToyInstance(handPhoneGeometry('bicycle'), sharedMaterials().toy), [])
   useEffect(() => () => phone.dispose(), [phone])
@@ -61,7 +61,7 @@ function RemoteAvatar({ sessionId, look }) {
     inner.position.set(0, 0, 0)
     inner.quaternion.identity()
     group.position.copy(r.position)
-    const running = r.anim === 'run'
+    const tossing = r.tossF >= 0 && r.tossF < 1
     if (r.flying || r.pulling) {
       // At the edge, facing out over it: winding up, or throwing.
       group.quaternion.setFromAxisAngle(_up, Math.PI)
@@ -71,11 +71,11 @@ function RemoteAvatar({ sessionId, look }) {
       m.grounded = true
       return
     }
-    group.quaternion.setFromAxisAngle(_up, running ? PAD_YAW : r.yaw)
-    // On a throw pad: practising, as you do - their phones fly down the lane too.
-    m.run = running ? 1 : 0
+    group.quaternion.setFromAxisAngle(_up, r.yaw)
+    // Throwing their phone, as you do: it flies down a pad's lane, or ahead of them.
+    m.run = tossing ? 1 : 0
 
-    const speed = running ? 0 : r.speed
+    const speed = r.speed
     m.speed = speed
     m.grounded = r.anim !== 'jump'
     // A Boxity emote they're playing (stood still while it lasts).
@@ -85,16 +85,18 @@ function RemoteAvatar({ sessionId, look }) {
     const y = r.position.y
     if (lastY.current !== null) m.vy += ((y - lastY.current) / Math.max(delta, 1e-3) - m.vy) * 0.3
     lastY.current = y
-    const rep = repFraction(m.stride)
-    m.stride += delta * (running ? RUN_CADENCE : 5 + 6 * Math.min(1, speed / MAX_SPEED))
-    if (running) {
-      const pad = padAt(r.position.x, r.position.z, 1)
-      if (pad >= 0 && releasedBetween(rep, repFraction(m.stride))) {
-        releasePoint(r.position, _hand)
-        spawnThrow(_hand.x, _hand.y, _hand.z, THROW_TARGET_X, throwTargetZ(pad), r.tireId || 'bicycle')
+    if (tossing) {
+      if (m.tossF < THROW_RELEASE && r.tossF >= THROW_RELEASE) {
+        releasePoint(r.position, _hand, r.yaw)
+        tossTarget(r.position, r.yaw, padAt(r.position.x, r.position.z, 1), _target)
+        spawnThrow(_hand.x, _hand.y, _hand.z, _target.x, _target.z, r.tireId || 'bicycle', _target.y)
       }
-      if (handRef.current && repFraction(m.stride) >= THROW_RELEASE) handRef.current.visible = false
+      m.stride = r.tossF * Math.PI * 2
+      if (handRef.current && r.tossF >= THROW_RELEASE) handRef.current.visible = false
+    } else {
+      m.stride += delta * (5 + 6 * Math.min(1, speed / MAX_SPEED))
     }
+    m.tossF = tossing ? r.tossF : 1
   })
 
   return (

@@ -272,7 +272,7 @@ export function padGain(profile, index, now) {
 // --- Training, levels, rebirth ------------------------------------------------------
 
 /**
- * Banks a natural gain (pad, rolling or walking) and the levels it reaches. Once you're
+ * Banks a throw's gain and the levels it reaches. Once you're
  * at max level natural gains stop: rebirth to keep going. Returns what was really added.
  */
 function addHealth(profile, gain) {
@@ -295,13 +295,10 @@ export function applyTrain(profile, index, now) {
   return { ok: true, ...addHealth(profile, padGain(profile, index, now)) }
 }
 
-/** One tick of Health while your tire rolls. */
-export function applyRollTick(profile, now) {
+/** One throw of your phone anywhere but a throw pad: your phone's own gain. */
+export function applyThrow(profile, now) {
   return { ok: true, ...addHealth(profile, baseGain(profile, now)) }
 }
-
-/** One step's worth of walking round the lobby: the same gain as a roll tick. */
-export const applyWalkStep = applyRollTick
 
 /** Rebirth: +1 rebirth; Health and levels reset (Wins, tires and pets stay). */
 export function applyRebirth(profile) {

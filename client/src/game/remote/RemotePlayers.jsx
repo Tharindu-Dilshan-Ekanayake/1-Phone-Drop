@@ -3,12 +3,11 @@ import { useEffect, useMemo, useRef } from 'react'
 import { Color, Matrix4, Quaternion, Vector3 } from 'three'
 
 import { ROLL_RECOVERY } from '@shared/balance'
-import { PAD_YAW } from '@shared/world'
 
 import { remotePlayers } from '../../net/remotePlayers'
 import { getQuality } from '../../store/quality'
 import { createBoxInstances, disposeBlocks } from '../blocks'
-import { RUN_CADENCE } from '../kick'
+import { TOSS_TIME } from '../practice'
 import { sharedMaterials, STYLE } from '../materials'
 import { T_RELEASE } from '../roll/dropPath'
 import { runtime } from '../runtime'
@@ -182,6 +181,11 @@ export function RemotePlayers() {
         }
       }
       r.pulling = r.anim === 'pull' && !r.flying
+      // A throw for Skill: each one flips their anim between toss0 and toss1.
+      const tossAnim = r.anim === 'toss0' || r.anim === 'toss1' ? r.anim : null
+      if (tossAnim && tossAnim !== r.lastToss) r.tossAt = now
+      r.lastToss = tossAnim
+      r.tossF = r.tossAt ? (now - r.tossAt) / 1000 / TOSS_TIME : 1
       r.shadow.position.copy(r.position)
 
       // --- In the lobby -----------------------------------------------------------
@@ -189,20 +193,18 @@ export function RemotePlayers() {
       const distance = camera.position.distanceTo(shownAt)
       const visible = distance < settings.remoteDrawDistance
       r.shadow.visible = visible
-      const running = r.anim === 'run'
+      const tossing = r.tossF >= 0 && r.tossF < 1
 
       // Players drawn as their real avatar (RemoteAvatars) skip the blocky figure.
       if (visible && !r.fullAvatar && instance + PARTS <= MAX_REMOTES * PARTS) {
-        const walking = !running && r.speed > 0.6
+        const walking = !tossing && r.speed > 0.6
         if (walking) r.walkPhase += delta * (6 + Math.min(r.speed, 10) * 0.5)
-        // On a throw pad: a practice throw a rep, the arms swinging over and down.
-        if (running) r.walkPhase += delta * RUN_CADENCE
         const swing = walking ? Math.sin(r.walkPhase) * 0.9 : 0
         const facingEdge = r.pulling || r.flying
-        _q.setFromAxisAngle(_up, running ? PAD_YAW : facingEdge ? Math.PI : r.yaw)
+        _q.setFromAxisAngle(_up, facingEdge ? Math.PI : r.yaw)
         _base.compose(r.position, _q, _s.set(1, 1, 1))
         // Arms: cocked back winding up, whipping over in the throw, or swinging along.
-        const arms = r.flying ? (r.throwT < 1 ? -3.2 + 2.6 * r.throwT : -0.3) : r.pulling ? -2.9 + Math.sin(t * 30) * 0.05 : running ? -1.7 - 1.3 * Math.cos(r.walkPhase) : null
+        const arms = r.flying ? (r.throwT < 1 ? -3.2 + 2.6 * r.throwT : -0.3) : r.pulling ? -2.9 + Math.sin(t * 30) * 0.05 : tossing ? -1.7 - 1.3 * Math.cos(r.tossF * Math.PI * 2) : null
         instance = writeFigure(body, instance, r, _base, swing, arms, 1)
       }
 

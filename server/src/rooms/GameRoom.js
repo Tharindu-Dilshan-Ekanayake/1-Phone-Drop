@@ -27,7 +27,8 @@ const DUPLICATE_LOGIN = 4100
 const POD = process.env.POD_NAME || `local-${process.pid}`
 
 /** What other players may be told someone is doing. */
-const ANIMS = ['idle', 'walk', 'run', 'jump', 'pull']
+/** What a player can be seen doing; 'toss0'/'toss1' alternate, one per throw. */
+const ANIMS = ['idle', 'walk', 'jump', 'pull', 'toss0', 'toss1']
 /** A Boxity emote, replicated through `anim` as 'emote:<its 24-hex id>'. */
 const EMOTE_ANIM = /^emote:[a-f0-9]{24}$/
 /** Least time between two 'gemsCheck's from one player (each is a database query). */

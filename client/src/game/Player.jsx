@@ -2,6 +2,7 @@ import { useFrame } from '@react-three/fiber'
 import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { Quaternion, Vector3 } from 'three'
 
+import { TRAIN_INTERVAL } from '@shared/balance'
 import { isPadUnlocked } from '@shared/logic'
 import { clampToWalkable, DROP_SPOT, groundHeightAt, PAD_YAW, padAt, STATIC_COLLIDERS } from '@shared/world'
 
@@ -11,11 +12,11 @@ import ErrorBoundary from '../ui/ErrorBoundary'
 import FallbackAvatar from './FallbackAvatar'
 import HeldPhone from './HeldPhone'
 import PlayerAvatar from './PlayerAvatar'
-import { RUN_CADENCE } from './kick'
-import { releasedBetween, releasePoint, repFraction, spawnThrow, THROW_RELEASE, THROW_TARGET_X, throwTargetZ } from './practice'
+import { releasePoint, spawnThrow, THROW_RELEASE, TOSS_TIME, tossTarget } from './practice'
 import { cancelPull, isPulling, launch, updatePull } from './launch'
 import { roll } from './roll/rollControl'
 import { runtime } from './runtime'
+import { startToss, toss } from './toss'
 import useKeyboard from './useKeyboard'
 
 export const PLAYER_HEIGHT = 1.8
@@ -37,6 +38,7 @@ const _targetQuat = new Quaternion()
 const _up = new Vector3(0, 1, 0)
 const _clamped = { x: 0, z: 0 }
 const _hand = new Vector3()
+const _target = new Vector3()
 
 /** Pushes a circle out of an axis-aligned rect. Returns true on contact. */
 function pushOut(pos, rect) {
@@ -79,8 +81,9 @@ function pushOut(pos, rect) {
  * Holding DROP in the DROP ZONE (RollButton, launch.js) steps you up to the edge, facing
  * out over it, and winds up the throw; letting go sends it. While the phone falls your
  * logical position stays at the edge (what the server checks) and your avatar follows
- * through the throw, empty-handed, until you're back. On a throw pad you face down its lane
- * and practise, throwing a phone at the target every rep (practice.js).
+ * through the throw, empty-handed, until you're back. Every click, tap or THROW throws your
+ * phone for Skill (toss.js): on a throw pad you face down its lane and it flies at the
+ * target, anywhere else a few metres ahead (practice.js).
  *
  * Reads and writes `runtime.player`; never touches React state per frame.
  *
@@ -105,6 +108,8 @@ export function Player({ onAvatarReady }) {
     stride: 0,
     windup: 0,
     throwT: 0,
+    /** How far through the current throw (0-1; 1 when not throwing), last frame. */
+    tossF: 1,
   })
 
   // The blob shadow follows the character.
@@ -216,10 +221,11 @@ export function Player({ onAvatarReady }) {
 
     // --- Facing -----------------------------------------------------------------
     const speed = Math.hypot(velocity.current.x, velocity.current.z)
-    // Standing still on an unlocked throw pad: practising, facing down its lane.
+    // On an unlocked throw pad your throws fly down its lane: standing still there, you face it.
     const pad = padAt(pos.x, pos.z)
-    const training = pad >= 0 && player.grounded && speed < 0.5 && !still && isPadUnlocked(getGame().profile, pad)
-    if (training) player.yaw = PAD_YAW
+    const padLane = pad >= 0 && isPadUnlocked(getGame().profile, pad)
+    const facingLane = padLane && player.grounded && speed < 0.5 && !still
+    if (facingLane) player.yaw = PAD_YAW
     else if (throwing || roll.active) player.yaw = Math.PI
     else if (speed > 0.3) player.yaw = Math.atan2(velocity.current.x, velocity.current.z)
 
@@ -227,10 +233,18 @@ export function Player({ onAvatarReady }) {
     motion.windup = throwing ? Math.max(0.15, launch.charge) : 0
     motion.wobble = throwing && launch.full ? 1 : 0
     motion.throwT = roll.active ? roll.throwT : 0
-    // Practising, the phone's gone from your hand from the moment you let it fly until
-    // you reach for the next one.
-    const rep = repFraction(motion.stride)
-    const thrown = training && rep >= THROW_RELEASE
+    // A throw (a click, a tap, THROW: toss.js), and the one lined up after it. Standing
+    // on a throw pad it throws by itself too, one every TRAIN_INTERVAL - clicking as well
+    // throws faster still.
+    let tossF = (now - toss.at) / 1000 / TOSS_TIME
+    if (still) toss.queued = false
+    else if (tossF >= 1 && (toss.queued || (facingLane && now - toss.at >= TRAIN_INTERVAL * 1000))) {
+      startToss(now)
+      tossF = 0
+    }
+    const tossing = !still && tossF >= 0 && tossF < 1
+    // The phone's gone from your hand from the moment you let it fly until you reach for the next.
+    const thrown = tossing && tossF >= THROW_RELEASE
     if (handRef.current) handRef.current.visible = !(roll.active && !roll.inHand) && !thrown
 
     if (group && visual) {
@@ -248,20 +262,24 @@ export function Player({ onAvatarReady }) {
 
     // --- Publish motion ---------------------------------------------------------
     player.speed = speed
-    player.anim = !player.grounded ? 'jump' : throwing ? 'pull' : training ? 'run' : speed > 0.5 ? 'walk' : 'idle'
+    // Every throw flips toss0/toss1, so other players see each one (RemotePlayers).
+    player.anim = !player.grounded ? 'jump' : throwing ? 'pull' : tossing ? (toss.seq % 2 ? 'toss1' : 'toss0') : speed > 0.5 ? 'walk' : 'idle'
 
     motion.speed = speed
     motion.grounded = player.grounded
     motion.vy = vy.current
-    // On a throw pad: a practice throw a rep (playerPose `run`), the phone flying off down
-    // the lane at the target as it leaves your hand.
-    motion.run = training ? 1 : 0
-    motion.stride += delta * (training ? RUN_CADENCE : 5 + 6 * Math.min(1, speed / WALK_SPEED))
-    if (training && releasedBetween(rep, repFraction(motion.stride))) {
-      releasePoint(pos, _hand)
-      spawnThrow(_hand.x, _hand.y, _hand.z, THROW_TARGET_X, throwTargetZ(pad), getGame().profile.equippedTire)
+    // Throwing (playerPose `run`, its phase the throw's progress); the phone flies off as
+    // it leaves your hand - down the pad's lane, or ahead of you.
+    motion.run = tossing ? 1 : 0
+    if (tossing) motion.stride = tossF * Math.PI * 2
+    else motion.stride += delta * (5 + 6 * Math.min(1, speed / WALK_SPEED))
+    if (tossing && motion.tossF < THROW_RELEASE && tossF >= THROW_RELEASE) {
+      releasePoint(pos, _hand, player.yaw)
+      tossTarget(pos, player.yaw, padLane ? pad : -1, _target)
+      spawnThrow(_hand.x, _hand.y, _hand.z, _target.x, _target.z, getGame().profile.equippedTire, _target.y)
       sfx.practiceThrow()
     }
+    motion.tossF = tossing ? tossF : 1
   })
 
   return (

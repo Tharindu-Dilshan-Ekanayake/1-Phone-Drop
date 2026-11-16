@@ -14,6 +14,7 @@ import {
   rebirthGift,
   rebirthMultiplier,
   TIRES,
+  TOSS_COOLDOWN,
   TUTORIAL,
   WORLD_PORTALS,
   WORLD_ZONES,
@@ -330,31 +331,50 @@ test('only brand-new players get the tutorial', () => {
 
 // --- The session -----------------------------------------------------------------
 
-test('training only counts on the pad the player really stands on', () => {
-  const pos = { x: SPAWN.x, y: 0, z: SPAWN.z }
-  const { session, profile } = makeSession(pos)
+test('Skill comes only from throws: never from standing, walking or a pad by itself', () => {
+  const pos = onPad(0)
+  const { session, profile, count } = makeSession(pos)
   session.handle('enterPad', { pad: 0 }, 0)
-  session.tick(0.1, 0)
-  session.tick(2, 0)
-  assert.equal(profile.health, 0, 'claimed a pad from spawn')
-  Object.assign(pos, onPad(0))
-  session.tick(0.1, 0)
-  session.tick(2, 0)
+  for (let t = 0; t < 20000; t += 100) {
+    pos.x = PAD_X + Math.sin(t / 700) * 30
+    session.tick(0.1, t)
+  }
+  assert.equal(profile.health, 0, 'walking about and standing on a pad earn nothing')
+  assert.equal(count('train'), 0)
+})
+
+test('each throw pays: the pad bonus only on the pad you really stand on, at most one per cooldown', () => {
+  const pos = { x: SPAWN.x, y: 0, z: SPAWN.z }
+  const { session, profile, events } = makeSession(pos)
+  session.handle('toss', {}, 1000)
+  const off = events.filter((e) => e.type === 'train')
+  assert.equal(off.length, 1)
+  assert.equal(off[0].payload.source, 'throw')
   assert.ok(profile.health > 0)
-  session.handle('enterPad', { pad: 1 }, 0)
+  session.handle('toss', {}, 1000 + TOSS_COOLDOWN * 500)
+  assert.equal(events.filter((e) => e.type === 'train').length, 1, 'too soon after the last throw')
+  // Claiming a pad from spawn pays no pad bonus.
+  session.handle('enterPad', { pad: 0 }, 2000)
+  session.handle('toss', {}, 3000)
+  assert.equal(events.at(-1).payload.source, 'throw', 'claimed a pad from spawn')
+  Object.assign(pos, onPad(0))
+  session.handle('toss', {}, 4000)
+  assert.equal(events.at(-1).payload.source, 'pad')
+  assert.equal(events.at(-1).payload.pad, 0)
+  session.handle('enterPad', { pad: 1 }, 5000)
   assert.equal(session.pad, 0, 'a locked pad cannot be entered')
 })
 
-test('the first guide step completes on the pad once Health reaches 30', () => {
+test('the first guide step completes once throws bring Skill to 30', () => {
   assert.equal(TUTORIAL[0].event, 'train')
   assert.equal(TUTORIAL[0].health, 30)
   const pos = onPad(0)
   const { session, profile } = makeSession(pos)
   session.handle('enterPad', { pad: 0 }, 0)
   let t = 0
-  while (profile.health < 29) session.tick(0.1, (t += 100))
+  while (profile.health < 29) session.handle('toss', {}, (t += 1000))
   assert.equal(profile.tutorialStep, 0)
-  while (profile.health < 30) session.tick(0.1, (t += 100))
+  while (profile.health < 30) session.handle('toss', {}, (t += 1000))
   assert.equal(profile.tutorialStep, 1)
 })
 
@@ -368,9 +388,10 @@ test('drops start only from the drop zone, one at a time', () => {
   assert.equal(count('roll'), 1)
   session.handle('roll', {}, 1500)
   assert.equal(count('roll'), 1, 'no second roll while the tire is out')
-  // Health ticks in while the tire rolls.
+  // No Skill while the phone falls, and no throwing either.
   for (let t = 1100; t < 4000; t += 100) session.tick(0.1, t)
-  assert.ok(profile.health >= 2, `got ${profile.health}`)
+  session.handle('toss', {}, 2000)
+  assert.equal(profile.health, 0, `got ${profile.health}`)
   session.handle('roll', {}, 1000 + session.busyUntil)
   assert.equal(count('roll'), 2, 'rolls again once the cooldown is over')
   assert.equal(profile.stats.rolls, 2)

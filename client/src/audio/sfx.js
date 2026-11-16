@@ -723,6 +723,16 @@ export const sfx = {
     noise({ at: 0.1, duration: 0.35, volume: 0.12 * p, from: 3000, to: 700, q: 1.6 })
     tone(220, { type: 'square', at: 0.05, duration: 0.1, volume: 0.06, slideTo: 90 })
   },
+  /** Furniture bursting apart under the falling phone: a woody crack and pieces clattering. */
+  furnitureSmash() {
+    if (!ready('furnitureSmash', 90)) return
+    noise({ duration: 0.06, volume: 0.22, from: 3200, to: 1400, q: 0.9 })
+    tone(160, { type: 'square', duration: 0.07, volume: 0.06, slideTo: 70 })
+    if (lite()) return
+    for (let i = 0; i < 4; i += 1) {
+      tone(700 + Math.random() * 700, { type: 'triangle', at: 0.05 + i * 0.045 + Math.random() * 0.02, duration: 0.03, volume: 0.035 })
+    }
+  },
   /** A hop as the phone settles (`n` 1, 2, 3...): a plasticky clack, softer each time. */
   phoneBounce(n = 1) {
     const v = 1 / (1 + (n - 1) * 0.9)

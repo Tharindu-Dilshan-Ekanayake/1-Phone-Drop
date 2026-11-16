@@ -24,6 +24,8 @@ export const actions = {
   roll: (accuracy) => send('roll', Number.isFinite(accuracy) ? { accuracy } : undefined),
   enterPad: (pad) => send('enterPad', { pad }),
   leavePad: () => send('leavePad'),
+  /** One throw of your phone: Skill (game/toss.js). */
+  toss: () => send('toss'),
   rebirth: () => send('rebirth'),
   skipRebirth: () => send('skipRebirth'),
   buyTire: (id) => send('buyTire', { id }),

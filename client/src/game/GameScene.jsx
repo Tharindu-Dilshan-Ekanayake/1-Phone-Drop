@@ -28,6 +28,7 @@ import Lighting from './Lighting'
 import PerfProbe from './PerfProbe'
 import Player from './Player'
 import PracticeThrows from './PracticeThrows'
+import TossInput from './TossInput'
 import ShaderWarmup from './ShaderWarmup'
 import { FOG, SKY } from './sceneStyle'
 import Sky from './Sky'
@@ -266,6 +267,7 @@ export function GameScene({ onReady }) {
         <RemoteAvatars />
         <Player />
         <PracticeThrows />
+        <TossInput />
         <BlobShadows />
         <GainFX />
         {warmedUp && firstFrame && (

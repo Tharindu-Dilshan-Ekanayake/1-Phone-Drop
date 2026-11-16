@@ -111,8 +111,8 @@ function airborne(vy) {
 }
 
 /**
- * Practice throws on a throw pad, one a rep (`phase` a rep per turn): reaching back with the
- * phone, whipping it over and down the lane (it leaves the hand at practice.THROW_RELEASE),
+ * Throwing your phone for Skill (`phase` a throw per turn): reaching back with the phone,
+ * whipping it over and forward (it leaves the hand at practice.THROW_RELEASE),
  * following through, then straightening up for the next one.
  */
 function practicing(phase, w) {
@@ -201,8 +201,8 @@ function cheering(time, w) {
  * @param {{ time?: number, speed?: number, maxSpeed?: number, grounded?: boolean,
  *   vy?: number, stride?: number, run?: number, windup?: number, wobble?: number,
  *   throwT?: number, cheer?: number, emote?: string|null }} motion
- *   `run` (0-1) is practising throws on a throw pad (`stride` is the reps' phase); the name is the
- *   template's, and what other players are told ('run').
+ *   `run` (0-1) is throwing your phone for Skill (`stride` is the throw's phase, a turn per
+ *   throw); the name is the template's.
  *   `windup` (0-1) is the throw meter while you hold DROP (0: not throwing), `wobble` 1
  *   once it's full; `throwT` (0-1) how far through the throw itself (0: no throw).
  *   `cheer` (0-1) up and celebrating.

@@ -22,6 +22,7 @@ import {
 import { mulberry32 } from '@shared/rng'
 import { PLAZA } from '@shared/world'
 
+import { sfx } from '../../audio/sfx'
 import { getQuality } from '../../store/quality'
 import { asToyInstance, BlockSet, createBoxInstances, disposeBlocks, PropBuilder } from '../blocks'
 import { sharedMaterials, STYLE } from '../materials'
@@ -616,6 +617,7 @@ export default function Tower() {
     let smashed = roll.floor < 0 ? 0 : roll.floor
     if (roll.floor >= 0 && y < floorY(roll.floor) + 2.4) smashed = roll.floor + 1
     if (smashed > st.smashed) {
+      sfx.furnitureSmash()
       for (let room = st.smashed; room < smashed; room += 1) {
         // It bursts apart now: its pieces fly out and land as rubble (fillInterior).
         brokeAt[room] = performance.now()

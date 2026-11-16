@@ -21,15 +21,19 @@
 
 // --- Health and levels --------------------------------------------------------------
 
-/** Seconds between gains on a throw pad: one practice throw, one gain. */
-export const TRAIN_INTERVAL = 0.6
-/** Seconds between the "+N" Skill gains you earn while your phone falls. */
-export const ROLL_TICK = 1
 /**
- * Walking around the lobby earns Health too: one gain for every WALK_STEP metres
- * walked (about one a second at a walk). Less than a pad, so training still pays.
+ * Skill comes from throwing your phone - a click, a tap, THROW, or standing on a throw
+ * pad, which throws by itself every TRAIN_INTERVAL - and nothing else (not walking): one
+ * throw, one gain, more on a throw pad (PADS mult). The server takes at most one throw
+ * every TOSS_COOLDOWN seconds; the client's throw (game/practice.js TOSS_TIME) takes a
+ * little longer, so honest clicking never hits the limit.
  */
-export const WALK_STEP = 8
+export const TOSS_COOLDOWN = 0.35
+/**
+ * Seconds between the throws a throw pad makes by itself while you stand on it; also the
+ * pace of the Skill earned while you were away (logic.applyOfflineProgress).
+ */
+export const TRAIN_INTERVAL = 0.6
 
 /**
  * Your level comes from your Health: reaching level L takes healthForLevel(L) Health.
@@ -716,7 +720,7 @@ export const QUEST_TYPES = {
  * that much); after the last the guide is done.
  */
 export const TUTORIAL = [
-  { text: 'Stand on a throw pad to practise throwing for Skill', event: 'train', target: 'pad0', health: 30 },
+  { text: 'Stand on a throw pad or tap to throw your phone for Skill', event: 'train', target: 'pad0', health: 30 },
   { text: 'Go to the DROP ZONE, hold DROP and let go at the top!', event: 'roll', target: 'roll' },
   { text: 'Buy the Flip Phone with your Wins!', event: 'buyTire', target: 'tires' },
 ]

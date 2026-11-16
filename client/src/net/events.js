@@ -47,7 +47,7 @@ export function handleServerEvent(type, payload) {
       game.patchProfile({
         health: payload.health,
         level: payload.level,
-        // Gains from rolling and walking aren't pad training.
+        // Throws off the pads aren't pad training.
         ...(payload.source === 'pad' ? { lastPad: payload.pad } : {}),
       })
       queueTrainFx(payload)
